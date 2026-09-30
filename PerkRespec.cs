@@ -428,7 +428,7 @@ namespace PerkQOL
             bool pending = PerkRespec.IsPending(_hero, _perk);
             IsPerkQOLRespecArrowDown = pending && _isLowerOfPair;
             IsPerkQOLRespecArrowUp = pending && !_isLowerOfPair;
-            IsPerkQOLRespecCoinVisible = pending && Settings.Current.RespecCostPerPerk > 0;
+            IsPerkQOLRespecCoinVisible = pending && Settings.Current.RespecCoinMarker && Settings.Current.RespecCostPerPerk > 0;
         }
 
         [DataSourceProperty]
@@ -506,7 +506,7 @@ namespace PerkQOL
             <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""20"" SuggestedHeight=""27"" HorizontalAlignment=""Right"" VerticalAlignment=""Center"" MarginRight=""5.5"" Sprite=""StdAssets\arrow_little"" Rotation=""-90"" VerticalFlip=""true"" PivotX=""0.5"" PivotY=""0.5"" ColorFactor=""1.3"" DoNotAcceptEvents=""true"" />
           </Children>
         </Widget>
-        <Widget IsVisible=""@IsPerkQOLRespecCoinVisible"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""17"" SuggestedHeight=""17"" HorizontalAlignment=""Left"" VerticalAlignment=""Top"" MarginLeft=""19"" MarginTop=""11"" Sprite=""General\Icons\Coin@2x"" DoNotAcceptEvents=""true"" />
+        <Widget IsVisible=""@IsPerkQOLRespecCoinVisible"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""17"" SuggestedHeight=""17"" HorizontalAlignment=""Left"" VerticalAlignment=""Top"" MarginLeft=""17"" MarginTop=""12"" Sprite=""General\Icons\Coin@2x"" DoNotAcceptEvents=""true"" />
       </Children>
     </Widget>
     <Widget IsVisible=""@IsPerkQOLRespecArrowUp"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""28"" SuggestedHeight=""28"" HorizontalAlignment=""Center"" VerticalAlignment=""Top"" MarginTop=""70"" DoNotAcceptEvents=""true"">
@@ -521,7 +521,7 @@ namespace PerkQOL
             <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""20"" SuggestedHeight=""27"" HorizontalAlignment=""Right"" VerticalAlignment=""Center"" MarginRight=""5.5"" Sprite=""StdAssets\arrow_little"" Rotation=""90"" PivotX=""0.5"" PivotY=""0.5"" ColorFactor=""1.3"" DoNotAcceptEvents=""true"" />
           </Children>
         </Widget>
-        <Widget IsVisible=""@IsPerkQOLRespecCoinVisible"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""17"" SuggestedHeight=""17"" HorizontalAlignment=""Left"" VerticalAlignment=""Top"" MarginLeft=""19"" MarginTop=""11"" Sprite=""General\Icons\Coin@2x"" DoNotAcceptEvents=""true"" />
+        <Widget IsVisible=""@IsPerkQOLRespecCoinVisible"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""17"" SuggestedHeight=""17"" HorizontalAlignment=""Left"" VerticalAlignment=""Top"" MarginLeft=""17"" MarginTop=""12"" Sprite=""General\Icons\Coin@2x"" DoNotAcceptEvents=""true"" />
       </Children>
     </Widget>
   </Children>

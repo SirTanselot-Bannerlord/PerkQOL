@@ -34,6 +34,11 @@ namespace PerkQOL
         [SettingPropertyGroup(CharacterScreen, GroupOrder = 0)]
         public bool RespecClickToggles { get; set; } = true;
 
+        [SettingPropertyBool("Respec: coin on swap arrows", Order = 8, RequireRestart = false,
+            HintText = "Shows a small coin next to the arrow of each staged swap when swaps cost gold.")]
+        [SettingPropertyGroup(CharacterScreen, GroupOrder = 0)]
+        public bool RespecCoinMarker { get; set; } = false;
+
         [SettingPropertyInteger("Respec cost per perk", 0, 10000, "0 Denars", Order = 4, RequireRestart = false,
             HintText = "Gold paid for each swapped perk. The arena master charges 40 per skill level to reset a tree, which works out to roughly 1000 per perk. 0 makes swaps free.")]
         [SettingPropertyGroup(CharacterScreen, GroupOrder = 0)]
