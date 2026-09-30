@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Module>
+  <Id value="PerkQOL" />
+  <Name value="Perk QOL" />
+  <Version value="v1.0.0" />
+  <DefaultModule value="false" />
+  <ModuleCategory value="Singleplayer" />
+  <ModuleType value="Community" />
+  <DependedModules>
+    <DependedModule Id="Bannerlord.Harmony" Optional="false" />
+    <DependedModule Id="Native" DependentVersion="v1.4.8.0" Optional="false" />
+    <DependedModule Id="SandBoxCore" DependentVersion="v1.4.8.0" Optional="false" />
+    <DependedModule Id="Sandbox" DependentVersion="v1.4.8.0" Optional="false" />
+    <DependedModule Id="Bannerlord.ButterLib" Optional="false" />
+    <DependedModule Id="Bannerlord.UIExtenderEx" Optional="false" />
+    <DependedModule Id="Bannerlord.MBOptionScreen" Optional="false" />
+    <DependedModule Id="NavalDLC" Optional="true" />
+  </DependedModules>
+  <DependedModuleMetadatas>
+    <DependedModuleMetadata id="Bannerlord.Harmony" order="LoadBeforeThis" />
+    <DependedModuleMetadata id="Bannerlord.ButterLib" order="LoadBeforeThis" />
+    <DependedModuleMetadata id="Bannerlord.UIExtenderEx" order="LoadBeforeThis" />
+    <DependedModuleMetadata id="Bannerlord.MBOptionScreen" order="LoadBeforeThis" />
+    <DependedModuleMetadata id="NavalDLC" order="LoadBeforeThis" optional="true" />
+  </DependedModuleMetadatas>
+  <SubModules>
+    <SubModule>
+      <Name value="PerkQOL" />
+      <DLLName value="PerkQOL.dll" />
+      <SubModuleClassType value="PerkQOL.SubModule" />
+      <Tags>
+        <Tag key="DedicatedServerType" value="none" />
+        <Tag key="IsNoRenderModeElement" value="false" />
+      </Tags>
+    </SubModule>
+  </SubModules>
+</Module>

@@ -1,0 +1,436 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Bannerlord.UIExtenderEx;
+using Bannerlord.UIExtenderEx.Attributes;
+using Bannerlord.UIExtenderEx.Prefabs2;
+using Bannerlord.UIExtenderEx.ViewModels;
+using TaleWorlds.CampaignSystem;
+using TaleWorlds.CampaignSystem.CharacterDevelopment;
+using TaleWorlds.CampaignSystem.ViewModelCollection.CharacterDeveloper;
+using TaleWorlds.Core;
+using TaleWorlds.Library;
+using TaleWorlds.Localization;
+
+namespace PerkQOL
+{
+    /// <summary>
+    /// Character screen role highlighting: frames every perk with an effect for the selected roles, each role in its own
+    /// colour, picked with a tickbox per role. The selection lasts for the session. Registered at load only when the MCM
+    /// option is on, since Gauntlet caches the patched prefab.
+    /// </summary>
+    internal static class PerkHighlighter
+    {
+        /// <summary>Role groups, plus None (no group) and All (the tickbox that toggles every group).</summary>
+        internal enum Mode
+        {
+            None,
+            All,
+            PersonalCombat,
+            PersonalCampaign,
+            PartyLeader,
+            ArmyCommander,
+            Captain,
+            PartyRole,
+            Governor,
+            ClanLeader
+        }
+
+        internal static readonly Mode[] Roles =
+        {
+            Mode.PersonalCombat, Mode.PersonalCampaign, Mode.PartyLeader, Mode.ArmyCommander, Mode.Captain, Mode.PartyRole, Mode.Governor, Mode.ClanLeader
+        };
+
+        private static readonly Dictionary<Mode, TextObject> Names = new Dictionary<Mode, TextObject>
+        {
+            [Mode.None] = new TextObject("{=PQOL_HL_None}None"),
+            [Mode.All] = new TextObject("{=PQOL_HL_All}All roles"),
+            [Mode.PersonalCombat] = new TextObject("{=PQOL_HL_PersonalCombat}Personal - Combat"),
+            [Mode.PersonalCampaign] = new TextObject("{=PQOL_HL_PersonalCampaign}Personal - Campaign"),
+            [Mode.PartyLeader] = new TextObject("{=PQOL_HL_PartyLeader}Party Leader"),
+            [Mode.ArmyCommander] = new TextObject("{=PQOL_HL_ArmyCommander}Army Commander"),
+            [Mode.Captain] = new TextObject("{=PQOL_HL_Captain}Captain"),
+            [Mode.PartyRole] = new TextObject("{=PQOL_HL_PartyRole}Party Role"),
+            [Mode.Governor] = new TextObject("{=PQOL_HL_Governor}Governor"),
+            [Mode.ClanLeader] = new TextObject("{=PQOL_HL_ClanLeader}Clan Leader"),
+        };
+
+        private static readonly HashSet<Mode> Selected = new HashSet<Mode>();
+
+        private static readonly List<WeakReference<PerkHighlightPerkMixin>> Perks = new List<WeakReference<PerkHighlightPerkMixin>>();
+
+        internal static string NameOf(Mode mode) => Names[mode].ToString();
+
+        internal static bool IsSelected(Mode role) => Selected.Contains(role);
+
+        internal static bool AllSelected => Selected.Count == Roles.Length;
+
+        internal static void Select(Mode role, bool selected)
+        {
+            if (selected ? Selected.Add(role) : Selected.Remove(role))
+            {
+                RefreshPerks();
+            }
+        }
+
+        internal static void SelectAll(bool selected)
+        {
+            Selected.Clear();
+            if (selected)
+            {
+                Selected.UnionWith(Roles);
+            }
+
+            RefreshPerks();
+        }
+
+        private static void RefreshPerks()
+        {
+            Perks.RemoveAll(r => !r.TryGetTarget(out _));
+            foreach (WeakReference<PerkHighlightPerkMixin> reference in Perks)
+            {
+                if (reference.TryGetTarget(out PerkHighlightPerkMixin mixin))
+                {
+                    mixin.Refresh();
+                }
+            }
+        }
+
+        internal static void Track(PerkHighlightPerkMixin mixin) => Perks.Add(new WeakReference<PerkHighlightPerkMixin>(mixin));
+
+        /// <summary>Must match the frame's ColorFactor; pre-dividing keeps pale tints from clamping to white.</summary>
+        private const float FrameColorFactor = 1.6f;
+
+        internal static Color LabelColorOf(Mode group)
+        {
+            switch (group)
+            {
+                case Mode.None:
+                case Mode.All: return Color.ConvertStringToColor("#CFC2AAFF");
+                // Command roles run teal -> violet as their scope grows.
+                case Mode.Captain: return Color.ConvertStringToColor("#5FE0C0FF");
+                case Mode.PartyLeader: return Color.ConvertStringToColor("#7CC4FFFF");
+                case Mode.ClanLeader: return Color.ConvertStringToColor("#7A80FFFF");
+                case Mode.ArmyCommander: return Color.ConvertStringToColor("#C890FFFF");
+                case Mode.PartyRole: return Color.ConvertStringToColor("#FFE070FF");
+                case Mode.Governor: return Color.ConvertStringToColor("#FF9CD0FF");
+                case Mode.PersonalCombat: return Color.ConvertStringToColor("#FF6A3DFF");
+                default: return Color.ConvertStringToColor("#FFF6E8FF");
+            }
+        }
+
+        private static Color FrameColorOf(Mode group)
+        {
+            Color c = LabelColorOf(group);
+            return new Color(c.Red / FrameColorFactor, c.Green / FrameColorFactor, c.Blue / FrameColorFactor, c.Alpha);
+        }
+
+        /// <summary>
+        /// Frame colours for the left (primary role) and right (secondary role) half. When only one of the perk's roles
+        /// is selected, its colour fills the whole frame. False when neither is selected.
+        /// </summary>
+        internal static bool TryGetColors(PerkObject perk, out Color left, out Color right)
+        {
+            left = right = default;
+            if (perk == null)
+            {
+                return false;
+            }
+
+            Mode primary = GroupOf(perk, perk.PrimaryRole);
+            Mode secondary = GroupOf(perk, perk.SecondaryRole);
+            bool primaryOn = primary != Mode.None && Selected.Contains(primary);
+            bool secondaryOn = secondary != Mode.None && Selected.Contains(secondary);
+            if (!primaryOn && !secondaryOn)
+            {
+                return false;
+            }
+
+            left = FrameColorOf(primaryOn ? primary : secondary);
+            right = FrameColorOf(secondaryOn ? secondary : primary);
+            return true;
+        }
+
+        /// <summary>Personal effects that break their tree's rule (combat trees are combat, other trees campaign).</summary>
+        private static readonly HashSet<string> PersonalExceptions = new HashSet<string>
+        {
+            // Campaign effects in combat trees: persuasion, crafting stamina, attributes, party XP.
+            "AthleticsImposingStature", "AthleticsStamina", "AthleticsDurable", "AthleticsSteady", "AthleticsStrong",
+            "TwoHandedBaptisedInBlood",
+            // Combat effects in other trees: damage, stun, speed, hit points, shields, battle morale.
+            "RogueryCarver", "RogueryDirtyFighting", "RogueryDashAndSlash", "RogueryFleetFooted",
+            "MedicinePreventiveMedicine", "MedicineDoctorsOath", "MedicineFortitudeTonic", "MedicineMinisterOfHealth",
+            "EngineeringScaffolds", "EngineeringTorsionEngines", "LeadershipMakeADifference",
+        };
+
+        private static bool IsCombatSkill(SkillObject skill) =>
+            skill == DefaultSkills.OneHanded || skill == DefaultSkills.TwoHanded || skill == DefaultSkills.Polearm
+            || skill == DefaultSkills.Bow || skill == DefaultSkills.Crossbow || skill == DefaultSkills.Throwing
+            || skill == DefaultSkills.Riding || skill == DefaultSkills.Athletics;
+
+        private static Mode PersonalGroupOf(PerkObject perk) =>
+            IsCombatSkill(perk.Skill) != PersonalExceptions.Contains(perk.StringId) ? Mode.PersonalCombat : Mode.PersonalCampaign;
+
+        private static Mode GroupOf(PerkObject perk, PartyRole role)
+        {
+            switch (role)
+            {
+                case PartyRole.Personal: return PersonalGroupOf(perk);
+                case PartyRole.PartyLeader: return Mode.PartyLeader;
+                case PartyRole.ArmyCommander: return Mode.ArmyCommander;
+                case PartyRole.Captain: return Mode.Captain;
+                case PartyRole.Governor: return Mode.Governor;
+                case PartyRole.ClanLeader: return Mode.ClanLeader;
+                case PartyRole.Scout:
+                case PartyRole.Engineer:
+                case PartyRole.Quartermaster:
+                case PartyRole.Surgeon:
+                case PartyRole.FirstMate:
+                case PartyRole.Navigator:
+                    return Mode.PartyRole;
+                default: return Mode.None;
+            }
+        }
+    }
+
+    /// <summary>One tickbox; <see cref="PerkHighlighter.Mode.All"/> ticks or clears every role.</summary>
+    public sealed class PerkHighlightRoleVM : ViewModel
+    {
+        private readonly Action<PerkHighlightRoleVM> _onToggled;
+        private bool _isSelected;
+
+        internal PerkHighlightRoleVM(PerkHighlighter.Mode role, Action<PerkHighlightRoleVM> onToggled)
+        {
+            Role = role;
+            _onToggled = onToggled;
+            Name = PerkHighlighter.NameOf(role);
+            Color = PerkHighlighter.LabelColorOf(role);
+        }
+
+        internal PerkHighlighter.Mode Role { get; }
+
+        [DataSourceProperty]
+        public string Name { get; }
+
+        [DataSourceProperty]
+        public Color Color { get; }
+
+        [DataSourceProperty]
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (value != _isSelected)
+                {
+                    _isSelected = value;
+                    OnPropertyChangedWithValue(value);
+                    _onToggled(this);
+                }
+            }
+        }
+
+        /// <summary>Updates the tick without reporting it as a click.</summary>
+        internal void Sync(bool selected)
+        {
+            if (selected != _isSelected)
+            {
+                _isSelected = selected;
+                OnPropertyChangedWithValue(selected, nameof(IsSelected));
+            }
+        }
+    }
+
+    [ViewModelMixin]
+    public sealed class PerkHighlightScreenMixin : BaseViewModelMixin<CharacterDeveloperVM>
+    {
+        private MBBindingList<PerkHighlightRoleVM> _perkHighlightRoles;
+
+        public PerkHighlightScreenMixin(CharacterDeveloperVM vm) : base(vm)
+        {
+            // Two columns filled row by row, with All alone on the last row. The right column grows in command scope.
+            _perkHighlightRoles = new MBBindingList<PerkHighlightRoleVM>();
+            foreach (PerkHighlighter.Mode role in new[]
+            {
+                PerkHighlighter.Mode.PersonalCombat, PerkHighlighter.Mode.Captain,
+                PerkHighlighter.Mode.PersonalCampaign, PerkHighlighter.Mode.PartyLeader,
+                PerkHighlighter.Mode.PartyRole, PerkHighlighter.Mode.ClanLeader,
+                PerkHighlighter.Mode.Governor, PerkHighlighter.Mode.ArmyCommander,
+                PerkHighlighter.Mode.All,
+            })
+            {
+                _perkHighlightRoles.Add(new PerkHighlightRoleVM(role, OnRoleToggled));
+            }
+
+            SyncTickboxes();
+        }
+
+        [DataSourceProperty]
+        public bool IsPerkQOLHighlightVisible => Settings.Current.PerkHighlight;
+
+        private void OnRoleToggled(PerkHighlightRoleVM item)
+        {
+            if (item.Role == PerkHighlighter.Mode.All)
+            {
+                PerkHighlighter.SelectAll(item.IsSelected);
+            }
+            else
+            {
+                PerkHighlighter.Select(item.Role, item.IsSelected);
+            }
+
+            SyncTickboxes();
+        }
+
+        private void SyncTickboxes()
+        {
+            foreach (PerkHighlightRoleVM item in _perkHighlightRoles)
+            {
+                item.Sync(item.Role == PerkHighlighter.Mode.All ? PerkHighlighter.AllSelected : PerkHighlighter.IsSelected(item.Role));
+            }
+        }
+
+        [DataSourceProperty]
+        public MBBindingList<PerkHighlightRoleVM> PerkHighlightRoles
+        {
+            get => _perkHighlightRoles;
+            set
+            {
+                if (value != _perkHighlightRoles)
+                {
+                    _perkHighlightRoles = value;
+                    OnPropertyChangedWithValue(value);
+                }
+            }
+        }
+    }
+
+    [ViewModelMixin]
+    public sealed class PerkHighlightPerkMixin : BaseViewModelMixin<PerkVM>
+    {
+        private readonly PerkObject _perk;
+        private bool _isPerkQOLHighlighted;
+        private Color _leftColor;
+        private Color _rightColor;
+
+        public PerkHighlightPerkMixin(PerkVM vm) : base(vm)
+        {
+            _perk = vm.Perk;
+            _isPerkQOLHighlighted = PerkHighlighter.TryGetColors(_perk, out _leftColor, out _rightColor);
+            PerkHighlighter.Track(this);
+        }
+
+        internal void Refresh()
+        {
+            bool highlighted = PerkHighlighter.TryGetColors(_perk, out Color left, out Color right);
+            if (highlighted)
+            {
+                PerkQOLHighlightLeftColor = left;
+                PerkQOLHighlightRightColor = right;
+            }
+
+            IsPerkQOLHighlighted = highlighted;
+        }
+
+        [DataSourceProperty]
+        public Color PerkQOLHighlightLeftColor
+        {
+            get => _leftColor;
+            set
+            {
+                if (value != _leftColor)
+                {
+                    _leftColor = value;
+                    OnPropertyChangedWithValue(value);
+                }
+            }
+        }
+
+        [DataSourceProperty]
+        public Color PerkQOLHighlightRightColor
+        {
+            get => _rightColor;
+            set
+            {
+                if (value != _rightColor)
+                {
+                    _rightColor = value;
+                    OnPropertyChangedWithValue(value);
+                }
+            }
+        }
+
+        [DataSourceProperty]
+        public bool IsPerkQOLHighlighted
+        {
+            get => _isPerkQOLHighlighted;
+            set
+            {
+                if (value != _isPerkQOLHighlighted)
+                {
+                    _isPerkQOLHighlighted = value;
+                    OnPropertyChangedWithValue(value);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Frame over the perk icon, using the sprite vanilla uses for its hover frame (57x62, not nine-sliced, so the line
+    /// scales with the frame). Drawn as two clipped halves of the same frame inside the 80x86 parent so each half can
+    /// take its own role colour.
+    /// </summary>
+    [PrefabExtension("CharacterDeveloper", "descendant::BrushWidget[@Id='PerkVisualWidgetParent']/Children")]
+    public sealed class PerkHighlightFramePatch : PrefabExtensionInsertPatch
+    {
+        public override InsertType Type => InsertType.Child;
+
+        public override int Index => int.MaxValue;
+
+        [PrefabExtensionText]
+        public string Content => @"
+<Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" DoNotAcceptEvents=""true"" IsVisible=""@IsPerkQOLHighlighted"">
+  <Children>
+    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""40"" HorizontalAlignment=""Left"" ClipContents=""true"" DoNotAcceptEvents=""true"">
+      <Children>
+        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""44"" SuggestedHeight=""48"" HorizontalAlignment=""Left"" MarginLeft=""18"" MarginTop=""19"" Sprite=""CharacterDeveloper\selected_perk_indicator_hover"" Color=""@PerkQOLHighlightLeftColor"" ColorFactor=""1.6"" DoNotAcceptEvents=""true"" />
+      </Children>
+    </Widget>
+    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""40"" HorizontalAlignment=""Right"" ClipContents=""true"" DoNotAcceptEvents=""true"">
+      <Children>
+        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""44"" SuggestedHeight=""48"" HorizontalAlignment=""Right"" MarginRight=""18"" MarginTop=""19"" Sprite=""CharacterDeveloper\selected_perk_indicator_hover"" Color=""@PerkQOLHighlightRightColor"" ColorFactor=""1.6"" DoNotAcceptEvents=""true"" />
+      </Children>
+    </Widget>
+  </Children>
+</Widget>";
+    }
+
+    /// <summary>
+    /// Tickbox per role in two columns, right of the skill XP bar and below the perk bar. Each label is tinted with its
+    /// frame colour so the panel doubles as the legend.
+    /// </summary>
+    [PrefabExtension("CharacterDeveloper", "descendant::Widget[@VisualDefinition='RightPanel']/Children")]
+    public sealed class PerkHighlightTickboxesPatch : PrefabExtensionInsertPatch
+    {
+        public override InsertType Type => InsertType.Child;
+
+        public override int Index => int.MaxValue;
+
+        [PrefabExtensionText]
+        public string Content => @"
+<GridWidget IsVisible=""@IsPerkQOLHighlightVisible"" DataSource=""{PerkHighlightRoles}"" WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""CoverChildren"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"" MarginTop=""560"" PositionXOffset=""245"" DefaultCellWidth=""215"" DefaultCellHeight=""30"" ColumnCount=""2"">
+  <ItemTemplate>
+    <ListPanel WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
+      <Children>
+        <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""26"" SuggestedHeight=""26"" VerticalAlignment=""Center"" Brush=""SPOptions.Checkbox.Empty.Button"" ButtonType=""Toggle"" IsSelected=""@IsSelected"" ToggleIndicator=""ToggleIndicator"" UpdateChildrenStates=""true"">
+          <Children>
+            <ImageWidget Id=""ToggleIndicator"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""SPOptions.Checkbox.Full.Button"" />
+          </Children>
+        </ButtonWidget>
+        <TextWidget WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""CoverChildren"" VerticalAlignment=""Center"" MarginLeft=""6"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""20"" Brush.FontColor=""@Color"" Text=""@Name"" />
+      </Children>
+    </ListPanel>
+  </ItemTemplate>
+</GridWidget>";
+    }
+}
