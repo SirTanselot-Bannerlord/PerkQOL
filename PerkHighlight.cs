@@ -137,8 +137,8 @@ namespace PerkQOL
                 return false;
             }
 
-            Mode primary = GroupOf(perk, perk.PrimaryRole);
-            Mode secondary = GroupOf(perk, perk.SecondaryRole);
+            Mode primary = GroupOf(perk, perk.PrimaryRole, 1);
+            Mode secondary = GroupOf(perk, perk.SecondaryRole, 2);
             bool primaryOn = primary != Mode.None && Selected.Contains(primary);
             bool secondaryOn = secondary != Mode.None && Selected.Contains(secondary);
             if (!primaryOn && !secondaryOn)
@@ -151,7 +151,11 @@ namespace PerkQOL
             return true;
         }
 
-        /// <summary>Personal effects that break their tree's rule (combat trees are combat, other trees campaign).</summary>
+        /// <summary>
+        /// Personal effects that break their tree's rule (combat trees are combat, other trees campaign). "Id" flips
+        /// both of a perk's personal effects, "Id/1" or "Id/2" only its primary or secondary one. Healing and
+        /// recovering lost hit points count as campaign (managing health between battles); max hit points as combat.
+        /// </summary>
         private static readonly HashSet<string> PersonalExceptions = new HashSet<string>
         {
             // Campaign effects in combat trees: persuasion, crafting stamina, attributes, party XP.
@@ -159,11 +163,12 @@ namespace PerkQOL
             "TwoHandedBaptisedInBlood",
             // Combat effects in other trees: damage, stun, speed, hit points, shields, battle morale.
             "RogueryCarver", "RogueryDirtyFighting", "RogueryDashAndSlash", "RogueryFleetFooted",
-            "MedicinePreventiveMedicine", "MedicineDoctorsOath", "MedicineFortitudeTonic", "MedicineMinisterOfHealth",
+            "MedicinePreventiveMedicine/1", "MedicineSelfMedication/2",
+            "MedicineDoctorsOath", "MedicineFortitudeTonic", "MedicineMinisterOfHealth",
             "EngineeringScaffolds", "EngineeringTorsionEngines", "LeadershipMakeADifference",
-            // War Sails: recruiting pirates in Mariner; deck movement, HP, damage and damage taken in the other trees.
+            // War Sails: recruiting pirates in Mariner; deck movement, damage and damage taken in the other trees.
             "Arr",
-            "Resilience", "WindRider", "TheHelmsmansShield", "TheCorsairsEdge",
+            "WindRider", "TheHelmsmansShield", "TheCorsairsEdge",
         };
 
         // Mariner is matched by id so War Sails stays an optional dependency.
@@ -173,14 +178,18 @@ namespace PerkQOL
             || skill == DefaultSkills.Riding || skill == DefaultSkills.Athletics
             || skill?.StringId == "Mariner";
 
-        private static Mode PersonalGroupOf(PerkObject perk) =>
-            IsCombatSkill(perk.Skill) != PersonalExceptions.Contains(perk.StringId) ? Mode.PersonalCombat : Mode.PersonalCampaign;
+        private static Mode PersonalGroupOf(PerkObject perk, int effect)
+        {
+            bool flipped = PersonalExceptions.Contains(perk.StringId) || PersonalExceptions.Contains(perk.StringId + "/" + effect);
+            return IsCombatSkill(perk.Skill) != flipped ? Mode.PersonalCombat : Mode.PersonalCampaign;
+        }
 
-        private static Mode GroupOf(PerkObject perk, PartyRole role)
+        /// <param name="effect">1 for the perk's primary effect, 2 for its secondary.</param>
+        private static Mode GroupOf(PerkObject perk, PartyRole role, int effect)
         {
             switch (role)
             {
-                case PartyRole.Personal: return PersonalGroupOf(perk);
+                case PartyRole.Personal: return PersonalGroupOf(perk, effect);
                 case PartyRole.PartyLeader: return Mode.PartyLeader;
                 case PartyRole.ArmyCommander: return Mode.ArmyCommander;
                 case PartyRole.Captain: return Mode.Captain;
