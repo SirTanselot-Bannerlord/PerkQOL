@@ -161,12 +161,17 @@ namespace PerkQOL
             "RogueryCarver", "RogueryDirtyFighting", "RogueryDashAndSlash", "RogueryFleetFooted",
             "MedicinePreventiveMedicine", "MedicineDoctorsOath", "MedicineFortitudeTonic", "MedicineMinisterOfHealth",
             "EngineeringScaffolds", "EngineeringTorsionEngines", "LeadershipMakeADifference",
+            // War Sails: recruiting pirates in Mariner; deck movement, HP, damage and damage taken in the other trees.
+            "Arr",
+            "Resilience", "WindRider", "TheHelmsmansShield", "TheCorsairsEdge",
         };
 
+        // Mariner is matched by id so War Sails stays an optional dependency.
         private static bool IsCombatSkill(SkillObject skill) =>
             skill == DefaultSkills.OneHanded || skill == DefaultSkills.TwoHanded || skill == DefaultSkills.Polearm
             || skill == DefaultSkills.Bow || skill == DefaultSkills.Crossbow || skill == DefaultSkills.Throwing
-            || skill == DefaultSkills.Riding || skill == DefaultSkills.Athletics;
+            || skill == DefaultSkills.Riding || skill == DefaultSkills.Athletics
+            || skill?.StringId == "Mariner";
 
         private static Mode PersonalGroupOf(PerkObject perk) =>
             IsCombatSkill(perk.Skill) != PersonalExceptions.Contains(perk.StringId) ? Mode.PersonalCombat : Mode.PersonalCampaign;
