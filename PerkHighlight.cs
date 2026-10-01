@@ -162,7 +162,7 @@ namespace PerkQOL
             "AthleticsImposingStature", "AthleticsStamina", "AthleticsDurable", "AthleticsSteady", "AthleticsStrong",
             "TwoHandedBaptisedInBlood",
             // Combat effects in other trees: damage, stun, speed, hit points, shields, battle morale.
-            "RogueryCarver", "RogueryDirtyFighting", "RogueryDashAndSlash", "RogueryFleetFooted",
+            "RogueryCarver", "RogueryDirtyFighting", "RogueryDashAndSlash", "RogueryFleetFooted/1",
             "MedicinePreventiveMedicine/1", "MedicineSelfMedication/2",
             "MedicineDoctorsOath", "MedicineFortitudeTonic", "MedicineMinisterOfHealth",
             "EngineeringScaffolds", "EngineeringTorsionEngines", "LeadershipMakeADifference",
