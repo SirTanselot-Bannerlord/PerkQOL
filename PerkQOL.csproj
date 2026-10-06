@@ -66,10 +66,11 @@
     <BannerlordModuleDir>D:\SteamLibrary\steamapps\common\Mount &amp; Blade II Bannerlord\Modules\PerkQOL</BannerlordModuleDir>
   </PropertyGroup>
   <Target Name="DeployToBannerlord" AfterTargets="Build" Condition="'$(SkipBannerlordDeploy)' != 'true'">
-    <MakeDir Directories="$(BannerlordModuleDir)\bin\Win64_Shipping_Client" />
+    <MakeDir Directories="$(BannerlordModuleDir)\bin\Win64_Shipping_Client;$(BannerlordModuleDir)\GUI\Brushes" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BannerlordModuleDir)\bin\Win64_Shipping_Client" SkipUnchangedFiles="false" />
     <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(BannerlordModuleDir)\bin\Win64_Shipping_Client" SkipUnchangedFiles="false" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
     <Copy SourceFiles="$(MSBuildProjectDirectory)\SubModule.xml" DestinationFolder="$(BannerlordModuleDir)" SkipUnchangedFiles="false" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\GUI\Brushes\PerkQOL.xml" DestinationFolder="$(BannerlordModuleDir)\GUI\Brushes" SkipUnchangedFiles="false" />
     <Message Importance="high" Text="Deployed $(TargetFileName) to $(BannerlordModuleDir)" />
   </Target>
 

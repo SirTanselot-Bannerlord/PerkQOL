@@ -1,0 +1,21 @@
+<Brushes>
+  <Brush Name="PerkQOL.CaptainFlags.Button">
+    <Layers>
+      <BrushLayer Name="Default" Sprite="PartyScreen\recruit_prisoner" />
+    </Layers>
+    <Styles>
+      <Style Name="Default">
+        <BrushLayer Name="Default" ColorFactor="1.0" />
+      </Style>
+      <Style Name="Hovered">
+        <BrushLayer Name="Default" ColorFactor="1.45" />
+      </Style>
+      <Style Name="Pressed">
+        <BrushLayer Name="Default" ColorFactor="0.85" />
+      </Style>
+      <Style Name="Disabled">
+        <BrushLayer Name="Default" ColorFactor="0.5" AlphaFactor="0.7" />
+      </Style>
+    </Styles>
+  </Brush>
+</Brushes>
