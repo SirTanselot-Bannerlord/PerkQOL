@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Xml;
 using Bannerlord.UIExtenderEx.Attributes;
 using HarmonyLib;
 using Bannerlord.UIExtenderEx.Prefabs2;
@@ -18,7 +19,7 @@ namespace PerkQOL
     /// <summary>
     /// Character screen role highlighting: frames every perk with an effect for the selected roles, each role in its own
     /// colour, picked with a tickbox per role. Captain can be narrowed to a troop class. A search bar highlights matching
-    /// perks (and related captain perks via troop-usage masks) in white, and skills with any match get a white marker.
+    /// perks (and related captain perks via troop-usage masks) in white, and a skill with any match gets a red name.
     /// Selection lasts for the session. Registered at load only when the MCM option is on, since Gauntlet caches the
     /// patched prefab.
     /// </summary>
@@ -351,6 +352,23 @@ namespace PerkQOL
         internal static void Track(PerkHighlightPerkMixin mixin) => Perks.Add(new WeakReference<PerkHighlightPerkMixin>(mixin));
 
         internal static void Track(PerkHighlightSkillMixin mixin) => Skills.Add(new WeakReference<PerkHighlightSkillMixin>(mixin));
+
+        internal static void RefreshSkill(SkillObject skill)
+        {
+            if (skill == null)
+            {
+                return;
+            }
+
+            Skills.RemoveAll(r => !r.TryGetTarget(out _));
+            foreach (WeakReference<PerkHighlightSkillMixin> reference in Skills)
+            {
+                if (reference.TryGetTarget(out PerkHighlightSkillMixin mixin) && mixin.Skill == skill)
+                {
+                    mixin.Refresh();
+                }
+            }
+        }
 
         /// <summary>Must match the frame's ColorFactor; pre-dividing keeps pale tints from clamping to white.</summary>
         private const float FrameColorFactor = 1.6f;
@@ -1123,34 +1141,56 @@ namespace PerkQOL
         }
     }
 
-    [ViewModelMixin]
+    [ViewModelMixin("RefreshValues")]
     public sealed class PerkHighlightSkillMixin : BaseViewModelMixin<SkillVM>
     {
+        // Color.FromUint is AARRGGBB. The skill-name brush is #FDF1DFFF.
+        private static readonly Color NormalColor = Color.FromUint(0xFFFDF1DFu);
+        private static readonly Color MatchColor = Color.FromUint(0xFFFF4D4Du);
+
         private readonly SkillObject _skill;
-        private bool _isHighlighted;
+        private Color _nameColor = NormalColor;
 
         public PerkHighlightSkillMixin(SkillVM vm) : base(vm)
         {
             _skill = vm.Skill;
-            _isHighlighted = PerkHighlighter.SkillHasMatch(_skill);
             PerkHighlighter.Track(this);
+            Apply();
         }
 
-        internal void Refresh() => IsPerkQOLSkillHighlighted = PerkHighlighter.SkillHasMatch(_skill);
+        internal SkillObject Skill => _skill;
+
+        public override void OnRefresh() => Apply();
+
+        internal void Refresh() => Apply();
+
+        private void Apply()
+        {
+            PerkQOLSkillNameColor = PerkHighlighter.SkillHasMatch(_skill) ? MatchColor : NormalColor;
+        }
 
         [DataSourceProperty]
-        public bool IsPerkQOLSkillHighlighted
+        public Color PerkQOLSkillNameColor
         {
-            get => _isHighlighted;
+            get => _nameColor;
             set
             {
-                if (value != _isHighlighted)
+                if (_nameColor.ToUnsignedInteger() == value.ToUnsignedInteger())
                 {
-                    _isHighlighted = value;
-                    OnPropertyChangedWithValue(value);
+                    return;
                 }
+
+                _nameColor = value;
+                OnPropertyChangedWithValue(value);
             }
         }
+    }
+
+    /// <summary>SkillVM.RefreshValues runs on character switches and after the grid rebinds, which would otherwise leave the name on the brush default.</summary>
+    [HarmonyPatch(typeof(SkillVM), nameof(SkillVM.RefreshValues))]
+    internal static class SkillNameColorRefreshPatch
+    {
+        private static void Postfix(SkillVM __instance) => PerkHighlighter.RefreshSkill(__instance.Skill);
     }
 
     /// <summary>
@@ -1304,22 +1344,24 @@ namespace PerkQOL
 </ListPanel>";
     }
 
-    /// <summary>A short line under the skill name when any of its perks is highlighted. Width follows the name.</summary>
-    [PrefabExtension("SkillGridItem", "descendant::SkillGridItemButtonWidget/Children")]
-    public sealed class PerkHighlightSkillFramePatch : PrefabExtensionInsertPatch
+    /// <summary>Replaces the skill name so its font color comes from the skill view-model.</summary>
+    [PrefabExtension("SkillGridItem", "descendant::TextWidget[@Text='@NameText']")]
+    public sealed class PerkHighlightSkillNamePatch : PrefabExtensionInsertPatch
     {
-        public override InsertType Type => InsertType.Child;
+        public override InsertType Type => InsertType.Replace;
 
-        public override int Index => int.MaxValue;
+        private readonly XmlDocument _document = new XmlDocument();
 
-        [PrefabExtensionText]
-        public string Content => @"
-<Widget IsVisible=""@IsPerkQOLSkillHighlighted"" WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""Fixed"" SuggestedHeight=""22"" VerticalAlignment=""Top"" HorizontalAlignment=""Left"" MarginLeft=""10"" DoNotAcceptEvents=""true"">
-  <Children>
-    <TextWidget WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""StretchToParent"" Brush=""CharacterDeveloper.GridSkillName.Text"" Text=""@NameText"" AlphaFactor=""0"" DoNotAcceptEvents=""true"" />
-    <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""1"" VerticalAlignment=""Bottom"" MarginBottom=""2"" Sprite=""BlankWhiteSquare_9"" Color=""#E4D3A6CC"" DoNotAcceptEvents=""true"" />
-  </Children>
-</Widget>";
+        public PerkHighlightSkillNamePatch()
+        {
+            _document.LoadXml(
+                "<TextWidget WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"Fixed\" SuggestedHeight=\"!NameText.Height\" " +
+                "VerticalAlignment=\"Top\" MarginLeft=\"10\" Brush=\"CharacterDeveloper.GridSkillName.Text\" " +
+                "Brush.FontColor=\"@PerkQOLSkillNameColor\" IsEnabled=\"@CanLearnSkill\" Text=\"@NameText\" DoNotAcceptEvents=\"true\" />");
+        }
+
+        [PrefabExtensionXmlNode]
+        public XmlNode Node => _document.DocumentElement;
     }
 
     /// <summary>
