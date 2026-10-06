@@ -81,8 +81,13 @@ namespace PerkQOL
             new TextObject("{=PQOL_CF_Custom}Custom"),
         };
 
-        /// <summary>Index of the dropdown row that means "the ticks no longer match a preset".</summary>
+        /// <summary>Index of the dropdown row that means "the ticks no longer match a preset or a saved template".</summary>
         internal const int CustomPresetIndex = 5;
+
+        /// <summary>First dropdown index used by a saved template. Rows above this are the built-in presets and Custom.</summary>
+        internal const int TemplateIndexBase = CustomPresetIndex + 1;
+
+        internal static IEnumerable<TextObject> PresetNames => CaptainFilterNames;
 
         private const TroopUsageFlags AllTroopFlags =
             TroopUsageFlags.OnFoot | TroopUsageFlags.Mounted | TroopUsageFlags.Melee | TroopUsageFlags.Ranged
@@ -136,13 +141,26 @@ namespace PerkQOL
 
         internal static string NameOf(Mode mode) => Names[mode].ToString();
 
-        internal static IEnumerable<TextObject> CaptainFilterLabels => CaptainFilterNames;
+        internal static TroopUsageFlags CurrentFlags => _captainFlags;
+
+        internal static bool IncludeUntagged => _includeUntagged;
+
+        internal static List<TextObject> CaptainFilterLabels()
+        {
+            var labels = new List<TextObject>(CaptainFilterNames);
+            foreach (CaptainTemplate template in CaptainTemplates.All)
+            {
+                labels.Add(new TextObject(template.Name));
+            }
+
+            return labels;
+        }
 
         internal static bool IsSelected(Mode role) => Selected.Contains(role);
 
         internal static bool AllSelected => Selected.Count == Roles.Length;
 
-        /// <summary>Dropdown index: a preset, or <see cref="CustomPresetIndex"/> when the ticks match none.</summary>
+        /// <summary>Dropdown index: a preset, a saved template, or <see cref="CustomPresetIndex"/> when the ticks match none.</summary>
         internal static int PresetIndex()
         {
             if (_includeUntagged && _captainFlags == AllTroopFlags)
@@ -150,7 +168,8 @@ namespace PerkQOL
                 return (int)CaptainTroopClass.Any;
             }
 
-            if (!_includeUntagged)
+            // The four troop presets include Generic only when the setting says so. Any always includes it.
+            if (_includeUntagged == Settings.Current.CaptainPresetsIncludeGeneric)
             {
                 if (_captainFlags == FormationFlagsOf(CaptainTroopClass.Infantry)) return (int)CaptainTroopClass.Infantry;
                 if (_captainFlags == FormationFlagsOf(CaptainTroopClass.Ranged)) return (int)CaptainTroopClass.Ranged;
@@ -158,7 +177,45 @@ namespace PerkQOL
                 if (_captainFlags == FormationFlagsOf(CaptainTroopClass.HorseArcher)) return (int)CaptainTroopClass.HorseArcher;
             }
 
+            IReadOnlyList<CaptainTemplate> templates = CaptainTemplates.All;
+            for (int i = 0; i < templates.Count; i++)
+            {
+                if (templates[i].Generic == _includeUntagged && (TroopUsageFlags)templates[i].Flags == _captainFlags)
+                {
+                    return TemplateIndexBase + i;
+                }
+            }
+
             return CustomPresetIndex;
+        }
+
+        internal static string SelectedTemplateName()
+        {
+            return CaptainTemplates.Get(PresetIndex() - TemplateIndexBase)?.Name;
+        }
+
+        /// <summary>
+        /// The open screen was showing a troop preset. Keep it that preset under the new Generic rule.
+        /// A saved template that merely shares the flag bits is left alone.
+        /// </summary>
+        internal static void OnGenericPresetSettingChanged(bool includeGeneric)
+        {
+            if (_includeUntagged == includeGeneric || _captainFlags == AllTroopFlags)
+            {
+                return;
+            }
+
+            if (_captainFlags != FormationFlagsOf(CaptainTroopClass.Infantry)
+                && _captainFlags != FormationFlagsOf(CaptainTroopClass.Ranged)
+                && _captainFlags != FormationFlagsOf(CaptainTroopClass.Cavalry)
+                && _captainFlags != FormationFlagsOf(CaptainTroopClass.HorseArcher))
+            {
+                return;
+            }
+
+            _includeUntagged = includeGeneric;
+            RefreshAll();
+            NotifyScreen();
         }
 
         internal static bool IsFlagOn(CaptainFlagOption option) =>
@@ -170,7 +227,7 @@ namespace PerkQOL
         internal static void ApplyPreset(CaptainTroopClass troopClass)
         {
             TroopUsageFlags flags = troopClass == CaptainTroopClass.Any ? AllTroopFlags : FormationFlagsOf(troopClass);
-            bool generic = troopClass == CaptainTroopClass.Any;
+            bool generic = troopClass == CaptainTroopClass.Any || Settings.Current.CaptainPresetsIncludeGeneric;
             if (flags == _captainFlags && generic == _includeUntagged)
             {
                 return;
@@ -180,6 +237,28 @@ namespace PerkQOL
             _includeUntagged = generic;
             RefreshAll();
             NotifyScreen();
+        }
+
+        /// <returns>False when that saved row no longer exists.</returns>
+        internal static bool ApplyTemplate(int templateIndex)
+        {
+            CaptainTemplate template = CaptainTemplates.Get(templateIndex);
+            if (template == null)
+            {
+                return false;
+            }
+
+            TroopUsageFlags flags = (TroopUsageFlags)template.Flags;
+            if (flags == _captainFlags && template.Generic == _includeUntagged)
+            {
+                return true;
+            }
+
+            _captainFlags = flags;
+            _includeUntagged = template.Generic;
+            RefreshAll();
+            NotifyScreen();
+            return true;
         }
 
         internal static void SetFlag(CaptainFlagOption option, bool selected)
@@ -339,8 +418,9 @@ namespace PerkQOL
                 return true;
             }
 
-            // None is "everyone in the formation", which the presets leave off except Any. The flag menu's Generic tick
-            // is that bucket. A real mask matches when every one of its flags is ticked.
+            // None is "everyone in the formation". Any always counts it. The four troop presets count it when the
+            // setting is on. The flag menu's Generic tick is that same bucket. A real mask matches when every one of
+            // its flags is ticked.
             if (mask == TroopUsageFlags.None)
             {
                 return _includeUntagged;
@@ -371,7 +451,8 @@ namespace PerkQOL
 
             if (TryParseFormationKeyword(query, out TroopUsageFlags formation)
                 && (MaskMatchesFormation(perk.PrimaryTroopUsageMask, formation)
-                    || MaskMatchesFormation(perk.SecondaryTroopUsageMask, formation)))
+                    || MaskMatchesFormation(perk.SecondaryTroopUsageMask, formation)
+                    || (Settings.Current.CaptainPresetsIncludeGeneric && HasUntaggedCaptainEffect(perk))))
             {
                 return true;
             }
@@ -415,6 +496,10 @@ namespace PerkQOL
         /// <summary>
         /// Same rule as vanilla captain rating: the formation's flags must contain every bit of the perk's usage mask.
         /// </summary>
+        private static bool HasUntaggedCaptainEffect(PerkObject perk) =>
+            (perk.PrimaryTroopUsageMask == TroopUsageFlags.None && GroupOf(perk, perk.PrimaryRole, 1) == Mode.Captain)
+            || (perk.SecondaryTroopUsageMask == TroopUsageFlags.None && GroupOf(perk, perk.SecondaryRole, 2) == Mode.Captain);
+
         private static bool MaskMatchesFormation(TroopUsageFlags mask, TroopUsageFlags formation) =>
             mask != TroopUsageFlags.Undefined && mask != TroopUsageFlags.None && formation.HasAllFlags(mask);
 
@@ -628,6 +713,7 @@ namespace PerkQOL
         private MBBindingList<CaptainFlagVM> _captainFlags;
         private SelectorVM<SelectorItemVM> _captainFilter;
         private string _searchText;
+        private string _templateName = "";
         private bool _isCaptainFilterVisible;
         private bool _isFlagMenuOpen;
         private bool _suppressDropdown;
@@ -654,10 +740,12 @@ namespace PerkQOL
                 _captainFlags.Add(new CaptainFlagVM(option, PerkHighlighter.IsFlagOn(option), OnFlagToggled));
             }
 
+            _suppressDropdown = true;
             _captainFilter = new SelectorVM<SelectorItemVM>(
-                PerkHighlighter.CaptainFilterLabels,
+                PerkHighlighter.CaptainFilterLabels(),
                 PerkHighlighter.PresetIndex(),
                 OnCaptainFilterChanged);
+            _suppressDropdown = false;
 
             _searchText = PerkHighlighter.SearchText;
             PerkHighlighter.BindScreen(this);
@@ -724,13 +812,69 @@ namespace PerkQOL
                 return;
             }
 
-            if (selector.SelectedIndex >= PerkHighlighter.CustomPresetIndex)
+            if (selector.SelectedIndex == PerkHighlighter.CustomPresetIndex)
             {
                 SyncDropdown();
                 return;
             }
 
+            if (selector.SelectedIndex >= PerkHighlighter.TemplateIndexBase)
+            {
+                if (!PerkHighlighter.ApplyTemplate(selector.SelectedIndex - PerkHighlighter.TemplateIndexBase))
+                {
+                    SyncDropdown();
+                }
+
+                SyncTemplateName();
+                return;
+            }
+
             PerkHighlighter.ApplyPreset((PerkHighlighter.CaptainTroopClass)selector.SelectedIndex);
+        }
+
+        public void ExecuteSavePerkQOLTemplate()
+        {
+            if (!CaptainTemplates.TryAdd(PerkQOLTemplateName, PerkHighlighter.CurrentFlags, PerkHighlighter.IncludeUntagged, out TextObject error))
+            {
+                ShowTemplateMessage(error);
+                return;
+            }
+
+            ReloadTemplateDropdown();
+        }
+
+        public void ExecuteUpdatePerkQOLTemplate()
+        {
+            if (!CaptainTemplates.TryUpdate(PerkQOLTemplateName, PerkHighlighter.CurrentFlags, PerkHighlighter.IncludeUntagged, out TextObject error))
+            {
+                ShowTemplateMessage(error);
+                return;
+            }
+
+            ReloadTemplateDropdown();
+        }
+
+        public void ExecuteDeletePerkQOLTemplate()
+        {
+            if (!CaptainTemplates.TryDelete(PerkQOLTemplateName, out TextObject error))
+            {
+                ShowTemplateMessage(error);
+                return;
+            }
+
+            PerkQOLTemplateName = "";
+            ReloadTemplateDropdown();
+        }
+
+        private static void ShowTemplateMessage(TextObject message) =>
+            InformationManager.DisplayMessage(new InformationMessage(message.ToString(), Colors.Red));
+
+        private void ReloadTemplateDropdown()
+        {
+            _suppressDropdown = true;
+            _captainFilter.Refresh(PerkHighlighter.CaptainFilterLabels(), PerkHighlighter.PresetIndex(), OnCaptainFilterChanged);
+            _suppressDropdown = false;
+            SyncTemplateName();
         }
 
         private void OnFlagToggled(CaptainFlagVM item) => PerkHighlighter.SetFlag(item.Option, item.IsSelected);
@@ -746,6 +890,24 @@ namespace PerkQOL
             }
 
             SyncDropdown();
+            SyncTemplateName();
+        }
+
+        /// <summary>
+        /// A matching template fills the name box. A built-in preset clears it. Custom leaves whatever was typed,
+        /// so Update still knows which template the ticks came from.
+        /// </summary>
+        private void SyncTemplateName()
+        {
+            string template = PerkHighlighter.SelectedTemplateName();
+            if (template != null)
+            {
+                PerkQOLTemplateName = template;
+            }
+            else if (PerkHighlighter.PresetIndex() < PerkHighlighter.CustomPresetIndex)
+            {
+                PerkQOLTemplateName = "";
+            }
         }
 
         private void SyncDropdown()
@@ -792,6 +954,30 @@ namespace PerkQOL
                 IsPerkQOLFlagMenuOpen = false;
             }
         }
+
+        [DataSourceProperty]
+        public string PerkQOLTemplateName
+        {
+            get => _templateName;
+            set
+            {
+                string next = value ?? "";
+                if (next != _templateName)
+                {
+                    _templateName = next;
+                    OnPropertyChangedWithValue(next);
+                }
+            }
+        }
+
+        [DataSourceProperty]
+        public string PerkQOLTemplateSaveLabel => new TextObject("{=PQOL_CT_Save}Save").ToString();
+
+        [DataSourceProperty]
+        public string PerkQOLTemplateUpdateLabel => new TextObject("{=PQOL_CT_Update}Update").ToString();
+
+        [DataSourceProperty]
+        public string PerkQOLTemplateDeleteLabel => new TextObject("{=PQOL_CT_Delete}Delete").ToString();
 
         [DataSourceProperty]
         public bool IsPerkQOLFlagMenuOpen
@@ -1044,11 +1230,11 @@ namespace PerkQOL
                         <TextWidget Id=""SelectedText"" DataSource=""{SelectedItem}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Center"" Text=""@StringItem"" />
                       </Children>
                     </ButtonWidget>
-                    <ListPanel Id=""SelectionList"" DataSource=""{ItemList}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""100"" Sprite=""BlankWhiteSquare_9"" Color=""#1A120CFF"" IsVisible=""false"" StackLayout.LayoutMethod=""VerticalTopToBottom"" ClipContents=""true"">
+                    <ListPanel Id=""SelectionList"" DataSource=""{ItemList}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""160"" Sprite=""BlankWhiteSquare_9"" Color=""#1A120CFF"" IsVisible=""false"" StackLayout.LayoutMethod=""VerticalTopToBottom"" ClipContents=""true"">
                       <ItemTemplate>
-                        <ButtonWidget Id=""DropdownItemButton"" DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""100"" SuggestedHeight=""22"" ButtonType=""Radio"" UpdateChildrenStates=""true"" Brush=""Standard.DropdownItem"">
+                        <ButtonWidget Id=""DropdownItemButton"" DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""160"" SuggestedHeight=""22"" ButtonType=""Radio"" UpdateChildrenStates=""true"" Brush=""Standard.DropdownItem"" ClipContents=""true"">
                           <Children>
-                            <TextWidget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""100"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Center"" Text=""@StringItem"" />
+                            <TextWidget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""148"" MarginLeft=""6"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Left"" Text=""@StringItem"" />
                           </Children>
                         </ButtonWidget>
                       </ItemTemplate>
@@ -1078,6 +1264,34 @@ namespace PerkQOL
                     </ListPanel>
                   </ItemTemplate>
                 </GridWidget>
+                <ListPanel WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""CoverChildren"" MarginLeft=""6"" MarginRight=""6"" MarginBottom=""6"" StackLayout.LayoutMethod=""VerticalTopToBottom"">
+                  <Children>
+                    <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""22"" Sprite=""BlankWhiteSquare_9"" Color=""#100C09E6"" ClipContents=""true"">
+                      <Children>
+                        <EditableTextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""16"" Text=""@PerkQOLTemplateName"" />
+                      </Children>
+                    </Widget>
+                    <ListPanel WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""22"" MarginTop=""4"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
+                      <Children>
+                        <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""74"" SuggestedHeight=""22"" MarginRight=""4"" Sprite=""BlankWhiteSquare_9"" Color=""#2A2118FF"" Command.Click=""ExecuteSavePerkQOLTemplate"" UpdateChildrenStates=""true"">
+                          <Children>
+                            <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateSaveLabel"" />
+                          </Children>
+                        </ButtonWidget>
+                        <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""74"" SuggestedHeight=""22"" MarginRight=""4"" Sprite=""BlankWhiteSquare_9"" Color=""#2A2118FF"" Command.Click=""ExecuteUpdatePerkQOLTemplate"" UpdateChildrenStates=""true"">
+                          <Children>
+                            <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateUpdateLabel"" />
+                          </Children>
+                        </ButtonWidget>
+                        <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""74"" SuggestedHeight=""22"" Sprite=""BlankWhiteSquare_9"" Color=""#2A2118FF"" Command.Click=""ExecuteDeletePerkQOLTemplate"" UpdateChildrenStates=""true"">
+                          <Children>
+                            <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateDeleteLabel"" />
+                          </Children>
+                        </ButtonWidget>
+                      </Children>
+                    </ListPanel>
+                  </Children>
+                </ListPanel>
               </Children>
             </Widget>
       </Children>

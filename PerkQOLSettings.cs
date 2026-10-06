@@ -53,6 +53,26 @@ namespace PerkQOL
             HintText = "Clan members can only swap while in your party, army, or settlement. With town-only, they must be in that town.")]
         [SettingPropertyGroup(CharacterScreen, GroupOrder = 0)]
         public bool RespecCompanionsNearby { get; set; } = true;
+
+        private bool _captainPresetsIncludeGeneric = true;
+
+        [SettingPropertyBool("Troop presets include Generic", Order = 7, RequireRestart = false,
+            HintText = "Infantry, Archer, Cavalry, and H. Archer also count captain perks with no troop flag. The deployment captain preview follows this. Any always includes them.")]
+        [SettingPropertyGroup(CharacterScreen, GroupOrder = 0)]
+        public bool CaptainPresetsIncludeGeneric
+        {
+            get => _captainPresetsIncludeGeneric;
+            set
+            {
+                if (value == _captainPresetsIncludeGeneric)
+                {
+                    return;
+                }
+
+                _captainPresetsIncludeGeneric = value;
+                PerkHighlighter.OnGenericPresetSettingChanged(value);
+            }
+        }
     }
 
     /// <summary>MCM's instance is null until MCM has loaded; fall back to defaults until then.</summary>

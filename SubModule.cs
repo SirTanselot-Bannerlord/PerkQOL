@@ -18,7 +18,9 @@ namespace PerkQOL
             base.OnSubModuleLoad();
 
             // Pass assembly explicitly: parameterless PatchAll() can NRE under BLSE.
-            new Harmony(HarmonyId).PatchAll(typeof(SubModule).Assembly);
+            Harmony harmony = new Harmony(HarmonyId);
+            harmony.PatchAll(typeof(SubModule).Assembly);
+            CaptainDropdownOpensUp.TryPatch(harmony);
         }
 
         protected override void OnBeforeInitialModuleScreenSetAsRoot()
