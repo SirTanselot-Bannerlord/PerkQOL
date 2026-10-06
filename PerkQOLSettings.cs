@@ -15,7 +15,7 @@ namespace PerkQOL
         public override char SubGroupDelimiter => '|';
 
         [SettingPropertyBool("Perk highlight", Order = 0, RequireRestart = true,
-            HintText = "Adds role tickboxes under the perk bar. Ticked roles colour-frame matching perks (Personal split into combat/campaign). Split frames use left=primary, right=secondary. Restart required.")]
+            HintText = "Role tickboxes, captain troop filter, and perk search under the perk bar. Frames matching perks; skills with a match get a white marker. Restart required.")]
         [SettingPropertyGroup(CharacterScreen, GroupOrder = 0)]
         public bool PerkHighlight { get; set; } = true;
 

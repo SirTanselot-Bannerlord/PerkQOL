@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using Bannerlord.UIExtenderEx;
 using Bannerlord.UIExtenderEx.Attributes;
 using Bannerlord.UIExtenderEx.Prefabs2;
 using Bannerlord.UIExtenderEx.ViewModels;
@@ -9,6 +7,7 @@ using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.CharacterDevelopment;
 using TaleWorlds.CampaignSystem.ViewModelCollection.CharacterDeveloper;
 using TaleWorlds.Core;
+using TaleWorlds.Core.ViewModelCollection.Selector;
 using TaleWorlds.Library;
 using TaleWorlds.Localization;
 
@@ -16,8 +15,10 @@ namespace PerkQOL
 {
     /// <summary>
     /// Character screen role highlighting: frames every perk with an effect for the selected roles, each role in its own
-    /// colour, picked with a tickbox per role. The selection lasts for the session. Registered at load only when the MCM
-    /// option is on, since Gauntlet caches the patched prefab.
+    /// colour, picked with a tickbox per role. Captain can be narrowed to a troop class. A search bar highlights matching
+    /// perks (and related captain perks via troop-usage masks) in white, and skills with any match get a white marker.
+    /// Selection lasts for the session. Registered at load only when the MCM option is on, since Gauntlet caches the
+    /// patched prefab.
     /// </summary>
     internal static class PerkHighlighter
     {
@@ -34,6 +35,16 @@ namespace PerkQOL
             PartyRole,
             Governor,
             ClanLeader
+        }
+
+        /// <summary>Troop-class filter for Captain highlights; Any matches every captain effect.</summary>
+        internal enum CaptainTroopClass
+        {
+            Any = 0,
+            Infantry = 1,
+            Ranged = 2,
+            Cavalry = 3,
+            HorseArcher = 4
         }
 
         internal static readonly Mode[] Roles =
@@ -55,21 +66,63 @@ namespace PerkQOL
             [Mode.ClanLeader] = new TextObject("{=PQOL_HL_ClanLeader}Clan Leader"),
         };
 
+        private static readonly TextObject[] CaptainFilterNames =
+        {
+            new TextObject("{=PQOL_CF_Any}Any"),
+            new TextObject("{=PQOL_CF_Infantry}Infantry"),
+            new TextObject("{=PQOL_CF_Ranged}Ranged"),
+            new TextObject("{=PQOL_CF_Cavalry}Cavalry"),
+            new TextObject("{=PQOL_CF_HorseArcher}Horse Archer"),
+        };
+
         private static readonly HashSet<Mode> Selected = new HashSet<Mode>();
 
         private static readonly List<WeakReference<PerkHighlightPerkMixin>> Perks = new List<WeakReference<PerkHighlightPerkMixin>>();
+        private static readonly List<WeakReference<PerkHighlightSkillMixin>> Skills = new List<WeakReference<PerkHighlightSkillMixin>>();
+
+        private static CaptainTroopClass _captainFilter = CaptainTroopClass.Any;
+        private static string _searchText = "";
 
         internal static string NameOf(Mode mode) => Names[mode].ToString();
+
+        internal static IEnumerable<TextObject> CaptainFilterLabels => CaptainFilterNames;
 
         internal static bool IsSelected(Mode role) => Selected.Contains(role);
 
         internal static bool AllSelected => Selected.Count == Roles.Length;
 
+        internal static CaptainTroopClass CaptainFilter
+        {
+            get => _captainFilter;
+            set
+            {
+                if (value != _captainFilter)
+                {
+                    _captainFilter = value;
+                    RefreshAll();
+                }
+            }
+        }
+
+        internal static string SearchText
+        {
+            get => _searchText;
+            set
+            {
+                string next = value ?? "";
+                if (next != _searchText)
+                {
+                    _searchText = next;
+                    RefreshAll();
+                }
+            }
+        }
+
         internal static void Select(Mode role, bool selected)
         {
             if (selected ? Selected.Add(role) : Selected.Remove(role))
             {
-                RefreshPerks();
+                RefreshAll();
             }
         }
 
@@ -81,10 +134,10 @@ namespace PerkQOL
                 Selected.UnionWith(Roles);
             }
 
-            RefreshPerks();
+            RefreshAll();
         }
 
-        private static void RefreshPerks()
+        private static void RefreshAll()
         {
             Perks.RemoveAll(r => !r.TryGetTarget(out _));
             foreach (WeakReference<PerkHighlightPerkMixin> reference in Perks)
@@ -94,9 +147,20 @@ namespace PerkQOL
                     mixin.Refresh();
                 }
             }
+
+            Skills.RemoveAll(r => !r.TryGetTarget(out _));
+            foreach (WeakReference<PerkHighlightSkillMixin> reference in Skills)
+            {
+                if (reference.TryGetTarget(out PerkHighlightSkillMixin mixin))
+                {
+                    mixin.Refresh();
+                }
+            }
         }
 
         internal static void Track(PerkHighlightPerkMixin mixin) => Perks.Add(new WeakReference<PerkHighlightPerkMixin>(mixin));
+
+        internal static void Track(PerkHighlightSkillMixin mixin) => Skills.Add(new WeakReference<PerkHighlightSkillMixin>(mixin));
 
         /// <summary>Must match the frame's ColorFactor; pre-dividing keeps pale tints from clamping to white.</summary>
         private const float FrameColorFactor = 1.6f;
@@ -129,7 +193,7 @@ namespace PerkQOL
         /// Frame colours for the left (primary role) and right (secondary role) half. When only one of the perk's roles
         /// is selected, its colour fills the whole frame. False when neither is selected.
         /// </summary>
-        internal static bool TryGetColors(PerkObject perk, out Color left, out Color right)
+        internal static bool TryGetRoleColors(PerkObject perk, out Color left, out Color right)
         {
             left = right = default;
             if (perk == null)
@@ -139,8 +203,8 @@ namespace PerkQOL
 
             Mode primary = GroupOf(perk, perk.PrimaryRole, 1);
             Mode secondary = GroupOf(perk, perk.SecondaryRole, 2);
-            bool primaryOn = primary != Mode.None && Selected.Contains(primary);
-            bool secondaryOn = secondary != Mode.None && Selected.Contains(secondary);
+            bool primaryOn = EffectMatchesRole(primary, perk.PrimaryTroopUsageMask);
+            bool secondaryOn = EffectMatchesRole(secondary, perk.SecondaryTroopUsageMask);
             if (!primaryOn && !secondaryOn)
             {
                 return false;
@@ -149,6 +213,135 @@ namespace PerkQOL
             left = FrameColorOf(primaryOn ? primary : secondary);
             right = FrameColorOf(secondaryOn ? secondary : primary);
             return true;
+        }
+
+        private static bool EffectMatchesRole(Mode group, TroopUsageFlags mask)
+        {
+            if (group == Mode.None || !Selected.Contains(group))
+            {
+                return false;
+            }
+
+            if (group != Mode.Captain || _captainFilter == CaptainTroopClass.Any)
+            {
+                return true;
+            }
+
+            return MaskMatchesFormation(mask, FormationFlagsOf(_captainFilter));
+        }
+
+        internal static bool MatchesSearch(PerkObject perk)
+        {
+            if (perk == null)
+            {
+                return false;
+            }
+
+            string query = (_searchText ?? "").Trim();
+            if (query.Length == 0)
+            {
+                return false;
+            }
+
+            if (TextContains(perk.Name?.ToString(), query)
+                || TextContains(perk.PrimaryDescription?.ToString(), query)
+                || TextContains(perk.SecondaryDescription?.ToString(), query))
+            {
+                return true;
+            }
+
+            if (TryParseFormationKeyword(query, out TroopUsageFlags formation)
+                && (MaskMatchesFormation(perk.PrimaryTroopUsageMask, formation)
+                    || MaskMatchesFormation(perk.SecondaryTroopUsageMask, formation)))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        internal static bool SkillHasMatch(SkillObject skill)
+        {
+            if (skill == null || (Selected.Count == 0 && string.IsNullOrWhiteSpace(_searchText)))
+            {
+                return false;
+            }
+
+            foreach (PerkObject perk in PerkObject.All)
+            {
+                if (perk.Skill != skill)
+                {
+                    continue;
+                }
+
+                if (TryGetRoleColors(perk, out _, out _) || MatchesSearch(perk))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool TextContains(string haystack, string needle) =>
+            !string.IsNullOrEmpty(haystack)
+            && haystack.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0;
+
+        /// <summary>
+        /// Same rule as vanilla captain rating: the formation's flags must contain every bit of the perk's usage mask.
+        /// </summary>
+        private static bool MaskMatchesFormation(TroopUsageFlags mask, TroopUsageFlags formation) =>
+            mask != TroopUsageFlags.Undefined && mask != TroopUsageFlags.None && formation.HasAllFlags(mask);
+
+        private static TroopUsageFlags FormationFlagsOf(CaptainTroopClass troopClass)
+        {
+            switch (troopClass)
+            {
+                case CaptainTroopClass.Infantry: return FormationClass.Infantry.GetTroopUsageFlags();
+                case CaptainTroopClass.Ranged: return FormationClass.Ranged.GetTroopUsageFlags();
+                case CaptainTroopClass.Cavalry: return FormationClass.Cavalry.GetTroopUsageFlags();
+                case CaptainTroopClass.HorseArcher: return FormationClass.HorseArcher.GetTroopUsageFlags();
+                default: return TroopUsageFlags.Undefined;
+            }
+        }
+
+        private static bool TryParseFormationKeyword(string query, out TroopUsageFlags flags)
+        {
+            flags = TroopUsageFlags.Undefined;
+            string key = query.Trim().ToLowerInvariant().Replace("-", " ").Replace("_", " ");
+            while (key.Contains("  "))
+            {
+                key = key.Replace("  ", " ");
+            }
+
+            switch (key)
+            {
+                case "infantry":
+                case "foot":
+                case "on foot":
+                    flags = FormationFlagsOf(CaptainTroopClass.Infantry);
+                    return true;
+                case "ranged":
+                case "archer":
+                case "archers":
+                    flags = FormationFlagsOf(CaptainTroopClass.Ranged);
+                    return true;
+                case "cavalry":
+                case "horseman":
+                case "horsemen":
+                    flags = FormationFlagsOf(CaptainTroopClass.Cavalry);
+                    return true;
+                case "horse archer":
+                case "horse archers":
+                case "horsearcher":
+                case "horsearchers":
+                case "mounted archer":
+                case "mounted archers":
+                    flags = FormationFlagsOf(CaptainTroopClass.HorseArcher);
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         /// <summary>
@@ -258,7 +451,13 @@ namespace PerkQOL
     [ViewModelMixin]
     public sealed class PerkHighlightScreenMixin : BaseViewModelMixin<CharacterDeveloperVM>
     {
+        private static readonly TextObject SearchPlaceholder = new TextObject("{=PQOL_HL_Search}Search perks...");
+        private static readonly TextObject CaptainFilterLabel = new TextObject("{=PQOL_CF_Label}Troop type");
+
         private MBBindingList<PerkHighlightRoleVM> _perkHighlightRoles;
+        private SelectorVM<SelectorItemVM> _captainFilter;
+        private string _searchText;
+        private bool _isCaptainFilterVisible;
 
         public PerkHighlightScreenMixin(CharacterDeveloperVM vm) : base(vm)
         {
@@ -276,11 +475,77 @@ namespace PerkQOL
                 _perkHighlightRoles.Add(new PerkHighlightRoleVM(role, OnRoleToggled));
             }
 
+            _captainFilter = new SelectorVM<SelectorItemVM>(
+                PerkHighlighter.CaptainFilterLabels,
+                (int)PerkHighlighter.CaptainFilter,
+                OnCaptainFilterChanged);
+
+            _searchText = PerkHighlighter.SearchText;
             SyncTickboxes();
+            UpdateCaptainFilterVisible();
         }
 
         [DataSourceProperty]
         public bool IsPerkQOLHighlightVisible => Settings.Current.PerkHighlight;
+
+        [DataSourceProperty]
+        public string PerkQOLSearchPlaceholder => SearchPlaceholder.ToString();
+
+        [DataSourceProperty]
+        public string PerkQOLCaptainFilterLabel => CaptainFilterLabel.ToString();
+
+        [DataSourceProperty]
+        public string PerkQOLSearchText
+        {
+            get => _searchText;
+            set
+            {
+                if (value != _searchText)
+                {
+                    _searchText = value ?? "";
+                    OnPropertyChangedWithValue(_searchText);
+                    PerkHighlighter.SearchText = _searchText;
+                }
+            }
+        }
+
+        [DataSourceProperty]
+        public SelectorVM<SelectorItemVM> PerkQOLCaptainFilter
+        {
+            get => _captainFilter;
+            set
+            {
+                if (value != _captainFilter)
+                {
+                    _captainFilter = value;
+                    OnPropertyChangedWithValue(value);
+                }
+            }
+        }
+
+        [DataSourceProperty]
+        public bool IsPerkQOLCaptainFilterVisible
+        {
+            get => _isCaptainFilterVisible;
+            set
+            {
+                if (value != _isCaptainFilterVisible)
+                {
+                    _isCaptainFilterVisible = value;
+                    OnPropertyChangedWithValue(value);
+                }
+            }
+        }
+
+        private void OnCaptainFilterChanged(SelectorVM<SelectorItemVM> selector)
+        {
+            if (selector.SelectedIndex < 0)
+            {
+                return;
+            }
+
+            PerkHighlighter.CaptainFilter = (PerkHighlighter.CaptainTroopClass)selector.SelectedIndex;
+        }
 
         private void OnRoleToggled(PerkHighlightRoleVM item)
         {
@@ -294,6 +559,7 @@ namespace PerkQOL
             }
 
             SyncTickboxes();
+            UpdateCaptainFilterVisible();
         }
 
         private void SyncTickboxes()
@@ -303,6 +569,9 @@ namespace PerkQOL
                 item.Sync(item.Role == PerkHighlighter.Mode.All ? PerkHighlighter.AllSelected : PerkHighlighter.IsSelected(item.Role));
             }
         }
+
+        private void UpdateCaptainFilterVisible() =>
+            IsPerkQOLCaptainFilterVisible = Settings.Current.PerkHighlight && PerkHighlighter.IsSelected(PerkHighlighter.Mode.Captain);
 
         [DataSourceProperty]
         public MBBindingList<PerkHighlightRoleVM> PerkHighlightRoles
@@ -324,26 +593,30 @@ namespace PerkQOL
     {
         private readonly PerkObject _perk;
         private bool _isPerkQOLHighlighted;
+        private bool _isPerkQOLSearchHighlighted;
         private Color _leftColor;
         private Color _rightColor;
 
         public PerkHighlightPerkMixin(PerkVM vm) : base(vm)
         {
             _perk = vm.Perk;
-            _isPerkQOLHighlighted = PerkHighlighter.TryGetColors(_perk, out _leftColor, out _rightColor);
+            Refresh();
             PerkHighlighter.Track(this);
         }
 
         internal void Refresh()
         {
-            bool highlighted = PerkHighlighter.TryGetColors(_perk, out Color left, out Color right);
-            if (highlighted)
+            bool role = PerkHighlighter.TryGetRoleColors(_perk, out Color left, out Color right);
+            bool search = PerkHighlighter.MatchesSearch(_perk);
+            if (role)
             {
                 PerkQOLHighlightLeftColor = left;
                 PerkQOLHighlightRightColor = right;
             }
 
-            IsPerkQOLHighlighted = highlighted;
+            IsPerkQOLHighlighted = role;
+            // Role colours win when both match; search still lights the skill via MatchesSearch.
+            IsPerkQOLSearchHighlighted = search && !role;
         }
 
         [DataSourceProperty]
@@ -387,12 +660,56 @@ namespace PerkQOL
                 }
             }
         }
+
+        [DataSourceProperty]
+        public bool IsPerkQOLSearchHighlighted
+        {
+            get => _isPerkQOLSearchHighlighted;
+            set
+            {
+                if (value != _isPerkQOLSearchHighlighted)
+                {
+                    _isPerkQOLSearchHighlighted = value;
+                    OnPropertyChangedWithValue(value);
+                }
+            }
+        }
+    }
+
+    [ViewModelMixin]
+    public sealed class PerkHighlightSkillMixin : BaseViewModelMixin<SkillVM>
+    {
+        private readonly SkillObject _skill;
+        private bool _isHighlighted;
+
+        public PerkHighlightSkillMixin(SkillVM vm) : base(vm)
+        {
+            _skill = vm.Skill;
+            _isHighlighted = PerkHighlighter.SkillHasMatch(_skill);
+            PerkHighlighter.Track(this);
+        }
+
+        internal void Refresh() => IsPerkQOLSkillHighlighted = PerkHighlighter.SkillHasMatch(_skill);
+
+        [DataSourceProperty]
+        public bool IsPerkQOLSkillHighlighted
+        {
+            get => _isHighlighted;
+            set
+            {
+                if (value != _isHighlighted)
+                {
+                    _isHighlighted = value;
+                    OnPropertyChangedWithValue(value);
+                }
+            }
+        }
     }
 
     /// <summary>
     /// Frame over the perk icon, using the sprite vanilla uses for its hover frame (57x62, not nine-sliced, so the line
     /// scales with the frame). Drawn as two clipped halves of the same frame inside the 80x86 parent so each half can
-    /// take its own role colour.
+    /// take its own role colour. A second white frame is used for search-only matches.
     /// </summary>
     [PrefabExtension("CharacterDeveloper", "descendant::BrushWidget[@Id='PerkVisualWidgetParent']/Children")]
     public sealed class PerkHighlightFramePatch : PrefabExtensionInsertPatch
@@ -403,18 +720,44 @@ namespace PerkQOL
 
         [PrefabExtensionText]
         public string Content => @"
-<Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" DoNotAcceptEvents=""true"" IsVisible=""@IsPerkQOLHighlighted"">
+<Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" DoNotAcceptEvents=""true"">
   <Children>
-    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""40"" HorizontalAlignment=""Left"" ClipContents=""true"" DoNotAcceptEvents=""true"">
+    <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" DoNotAcceptEvents=""true"" IsVisible=""@IsPerkQOLHighlighted"">
       <Children>
-        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""44"" SuggestedHeight=""48"" HorizontalAlignment=""Left"" MarginLeft=""18"" MarginTop=""19"" Sprite=""CharacterDeveloper\selected_perk_indicator_hover"" Color=""@PerkQOLHighlightLeftColor"" ColorFactor=""1.6"" DoNotAcceptEvents=""true"" />
+        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""40"" HorizontalAlignment=""Left"" ClipContents=""true"" DoNotAcceptEvents=""true"">
+          <Children>
+            <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""44"" SuggestedHeight=""48"" HorizontalAlignment=""Left"" MarginLeft=""18"" MarginTop=""19"" Sprite=""CharacterDeveloper\selected_perk_indicator_hover"" Color=""@PerkQOLHighlightLeftColor"" ColorFactor=""1.6"" DoNotAcceptEvents=""true"" />
+          </Children>
+        </Widget>
+        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""40"" HorizontalAlignment=""Right"" ClipContents=""true"" DoNotAcceptEvents=""true"">
+          <Children>
+            <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""44"" SuggestedHeight=""48"" HorizontalAlignment=""Right"" MarginRight=""18"" MarginTop=""19"" Sprite=""CharacterDeveloper\selected_perk_indicator_hover"" Color=""@PerkQOLHighlightRightColor"" ColorFactor=""1.6"" DoNotAcceptEvents=""true"" />
+          </Children>
+        </Widget>
       </Children>
     </Widget>
-    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""40"" HorizontalAlignment=""Right"" ClipContents=""true"" DoNotAcceptEvents=""true"">
+    <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" DoNotAcceptEvents=""true"" IsVisible=""@IsPerkQOLSearchHighlighted"">
       <Children>
-        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""44"" SuggestedHeight=""48"" HorizontalAlignment=""Right"" MarginRight=""18"" MarginTop=""19"" Sprite=""CharacterDeveloper\selected_perk_indicator_hover"" Color=""@PerkQOLHighlightRightColor"" ColorFactor=""1.6"" DoNotAcceptEvents=""true"" />
+        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""44"" SuggestedHeight=""48"" HorizontalAlignment=""Center"" MarginTop=""19"" Sprite=""CharacterDeveloper\selected_perk_indicator_hover"" Color=""#FFFFFFFF"" ColorFactor=""1.6"" DoNotAcceptEvents=""true"" />
       </Children>
     </Widget>
+  </Children>
+</Widget>";
+    }
+
+    /// <summary>Search bar above the role tickboxes.</summary>
+    [PrefabExtension("CharacterDeveloper", "descendant::Widget[@VisualDefinition='RightPanel']/Children")]
+    public sealed class PerkHighlightSearchPatch : PrefabExtensionInsertPatch
+    {
+        public override InsertType Type => InsertType.Child;
+
+        public override int Index => int.MaxValue;
+
+        [PrefabExtensionText]
+        public string Content => @"
+<Widget IsVisible=""@IsPerkQOLHighlightVisible"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""430"" SuggestedHeight=""36"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"" MarginTop=""515"" PositionXOffset=""245"" Sprite=""BlankWhiteSquare_9"" Color=""#1A1410FF"" AlphaFactor=""0.85"">
+  <Children>
+    <EditableTextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""10"" MarginRight=""10"" MarginTop=""4"" MarginBottom=""4"" Brush=""Encyclopedia.Search.TextBox"" Text=""@PerkQOLSearchText"" DefaultSearchText=""@PerkQOLSearchPlaceholder"" />
   </Children>
 </Widget>";
     }
@@ -446,5 +789,36 @@ namespace PerkQOL
     </ListPanel>
   </ItemTemplate>
 </GridWidget>";
+    }
+
+    /// <summary>Captain troop-class filter; shown only while the Captain role tickbox is selected.</summary>
+    [PrefabExtension("CharacterDeveloper", "descendant::Widget[@VisualDefinition='RightPanel']/Children")]
+    public sealed class PerkHighlightCaptainFilterPatch : PrefabExtensionInsertPatch
+    {
+        public override InsertType Type => InsertType.Child;
+
+        public override int Index => int.MaxValue;
+
+        [PrefabExtensionText]
+        public string Content => @"
+<ListPanel IsVisible=""@IsPerkQOLCaptainFilterVisible"" WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""CoverChildren"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"" MarginTop=""715"" PositionXOffset=""245"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
+  <Children>
+    <TextWidget WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""CoverChildren"" VerticalAlignment=""Center"" MarginRight=""8"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""18"" Brush.FontColor=""#5FE0C0FF"" Text=""@PerkQOLCaptainFilterLabel"" />
+    <Standard.DropdownWithHorizontalControl Parameter.SelectorDataSource=""{PerkQOLCaptainFilter}"" Parameter.ShowNextAndPrevious=""false"" Parameter.IsFlatDesign=""true"" Parameter.IsCustomWidth=""true"" Parameter.CustomWidth=""180"" />
+  </Children>
+</ListPanel>";
+    }
+
+    /// <summary>White selection tint on skill cards that contain any currently highlighted perk.</summary>
+    [PrefabExtension("SkillGridItem", "descendant::SkillGridItemButtonWidget/Children")]
+    public sealed class PerkHighlightSkillFramePatch : PrefabExtensionInsertPatch
+    {
+        public override InsertType Type => InsertType.Child;
+
+        public override int Index => int.MaxValue;
+
+        [PrefabExtensionText]
+        public string Content => @"
+<Widget IsVisible=""@IsPerkQOLSkillHighlighted"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""CharacterDeveloper\SkillBackgrounds\skill_card_selection"" Color=""#FFFFFFFF"" ColorFactor=""1.4"" DoNotAcceptEvents=""true"" />";
     }
 }
