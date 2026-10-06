@@ -794,19 +794,19 @@ namespace PerkQOL
         </GridWidget>
         <Widget IsVisible=""@IsPerkQOLCaptainFilterVisible"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""104"" SuggestedHeight=""26"" HorizontalAlignment=""Right"" VerticalAlignment=""Top"" MarginTop=""2"" MarginRight=""2"">
           <Children>
-            <DropdownWidget Id=""CaptainTroopDropdown"" DataSource=""{PerkQOLCaptainFilter}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" ListPanel=""SelectionList"" Button=""DropdownButton"" TextWidget=""DropdownButton\SelectedText"" CurrentSelectedIndex=""@SelectedIndex"">
+            <DropdownWidget Id=""CaptainTroopDropdown"" DataSource=""{PerkQOLCaptainFilter}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""104"" SuggestedHeight=""26"" ListPanel=""SelectionList"" Button=""DropdownButton"" TextWidget=""DropdownButton\SelectedText"" CurrentSelectedIndex=""@SelectedIndex"">
               <Children>
-                <ButtonWidget Id=""DropdownButton"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""SPOptions.Dropdown.Center"" ButtonType=""Toggle"" DoNotPassEventsToChildren=""true"" UpdateChildrenStates=""true"">
+                <ButtonWidget Id=""DropdownButton"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""104"" SuggestedHeight=""26"" Sprite=""BlankWhiteSquare_9"" Color=""#2A2118FF"" ButtonType=""Toggle"" DoNotPassEventsToChildren=""true"" UpdateChildrenStates=""true"" ClipContents=""true"">
                   <Children>
-                    <TextWidget Id=""SelectedText"" DataSource=""{SelectedItem}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""4"" MarginRight=""4"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""14"" Text=""@StringItem"" />
+                    <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""1"" VerticalAlignment=""Bottom"" Sprite=""BlankWhiteSquare_9"" Color=""#C1A57BFF"" DoNotAcceptEvents=""true"" />
+                    <TextWidget Id=""SelectedText"" DataSource=""{SelectedItem}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Center"" Text=""@StringItem"" />
                   </Children>
                 </ButtonWidget>
-                <ListPanel Id=""SelectionList"" DataSource=""{ItemList}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""CoverChildren"" VerticalAlignment=""Top"" MarginTop=""26"" Sprite=""BlankWhiteSquare_9"" Color=""#1A120CFF"" IsVisible=""false"" StackLayout.LayoutMethod=""VerticalTopToBottom"">
+                <ListPanel Id=""SelectionList"" DataSource=""{ItemList}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""104"" Sprite=""BlankWhiteSquare_9"" Color=""#1A120CFF"" IsVisible=""false"" StackLayout.LayoutMethod=""VerticalTopToBottom"" ClipContents=""true"">
                   <ItemTemplate>
-                    <ButtonWidget Id=""DropdownItemButton"" DoNotPassEventsToChildren=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""24"" ButtonType=""Radio"" UpdateChildrenStates=""true"" Brush=""Standard.DropdownItem.SoundBrush"">
+                    <ButtonWidget Id=""DropdownItemButton"" DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""104"" SuggestedHeight=""22"" ButtonType=""Radio"" UpdateChildrenStates=""true"" Brush=""Standard.DropdownItem"">
                       <Children>
-                        <ImageWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""Standard.DropdownItem"" />
-                        <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""SPOptions.Dropdown.Item.Text"" Brush.FontSize=""14"" Text=""@StringItem"" />
+                        <TextWidget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""104"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Center"" Text=""@StringItem"" />
                       </Children>
                     </ButtonWidget>
                   </ItemTemplate>
