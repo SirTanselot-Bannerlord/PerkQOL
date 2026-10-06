@@ -751,13 +751,13 @@ namespace PerkQOL
 
         public PerkHighlightScreenMixin(CharacterDeveloperVM vm) : base(vm)
         {
-            // Two columns, row by row. Captain is last in the right column so the troop menu can sit in the cell under it.
+            // Two columns, row by row. The right column ends with Captain so its troop menu can sit indented under that label.
             _perkHighlightRoles = new MBBindingList<PerkHighlightRoleVM>();
             foreach (PerkHighlighter.Mode role in new[]
             {
-                PerkHighlighter.Mode.PersonalCombat, PerkHighlighter.Mode.PartyLeader,
+                PerkHighlighter.Mode.PersonalCombat, PerkHighlighter.Mode.ArmyCommander,
                 PerkHighlighter.Mode.PersonalCampaign, PerkHighlighter.Mode.ClanLeader,
-                PerkHighlighter.Mode.PartyRole, PerkHighlighter.Mode.ArmyCommander,
+                PerkHighlighter.Mode.PartyRole, PerkHighlighter.Mode.PartyLeader,
                 PerkHighlighter.Mode.Governor, PerkHighlighter.Mode.Captain,
                 PerkHighlighter.Mode.All,
             })
@@ -913,6 +913,45 @@ namespace PerkQOL
         [DataSourceMethod]
         public void ExecuteTogglePerkQOLFlagMenu() => IsPerkQOLFlagMenuOpen = !_isFlagMenuOpen;
 
+        [DataSourceMethod]
+        public void ExecuteClosePerkQOLFlagMenu() => IsPerkQOLFlagMenuOpen = false;
+
+        /// <summary>Steps the troop menu, skipping the Custom row, which only mirrors unsaved ticks.</summary>
+        [DataSourceMethod]
+        public void ExecutePerkQOLCaptainPrevious() => StepCaptainFilter(-1);
+
+        [DataSourceMethod]
+        public void ExecutePerkQOLCaptainNext() => StepCaptainFilter(1);
+
+        private void StepCaptainFilter(int direction)
+        {
+            if (_captainFilter?.ItemList == null || _captainFilter.ItemList.Count == 0)
+            {
+                return;
+            }
+
+            int count = _captainFilter.ItemList.Count;
+            int index = _captainFilter.SelectedIndex;
+            for (int step = 0; step < count; step++)
+            {
+                index += direction;
+                if (index < 0)
+                {
+                    index = count - 1;
+                }
+                else if (index >= count)
+                {
+                    index = 0;
+                }
+
+                if (index != PerkHighlighter.CustomPresetIndex)
+                {
+                    _captainFilter.SelectedIndex = index;
+                    return;
+                }
+            }
+        }
+
         /// <summary>Pulls the flag ticks and the preset label back in line with the highlighter.</summary>
         internal void SyncCaptainFlags()
         {
@@ -1010,6 +1049,12 @@ namespace PerkQOL
 
         [DataSourceProperty]
         public string PerkQOLTemplateDeleteLabel => new TextObject("{=PQOL_CT_Delete}Delete").ToString();
+
+        [DataSourceProperty]
+        public string PerkQOLFlagWindowTitle => new TextObject("{=PQOL_CT_Title}Captain flags").ToString();
+
+        [DataSourceProperty]
+        public string PerkQOLFlagWindowCloseLabel => new TextObject("{=PQOL_CT_Close}Close").ToString();
 
         [DataSourceProperty]
         public bool IsPerkQOLFlagMenuOpen
@@ -1233,8 +1278,8 @@ namespace PerkQOL
     }
 
     /// <summary>
-    /// Filter box, then the role tickboxes. Captain is the last row of the right column; its troop menu sits in the
-    /// empty cell under that label, and the flag list opens beneath the grid.
+    /// Filter box, then the role tickboxes. Captain is the last row of the right column; its troop menu sits indented
+    /// under that label. The flag editor is a separate window, so opening it does not move this block.
     /// </summary>
     [PrefabExtension("CharacterDeveloper", "descendant::Widget[@VisualDefinition='RightPanel']/Children")]
     public sealed class PerkHighlightControlsPatch : PrefabExtensionInsertPatch
@@ -1245,14 +1290,14 @@ namespace PerkQOL
 
         [PrefabExtensionText]
         public string Content => @"
-<ListPanel IsVisible=""@IsPerkQOLHighlightVisible"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""430"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"" MarginTop=""575"" PositionXOffset=""245"" StackLayout.LayoutMethod=""VerticalTopToBottom"">
+<ListPanel IsVisible=""@IsPerkQOLHighlightVisible"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""430"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"" MarginTop=""590"" PositionXOffset=""245"" StackLayout.LayoutMethod=""VerticalTopToBottom"">
   <Children>
     <BrushWidget UpdateChildrenStates=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""36"" MarginBottom=""6"" Brush=""SaveLoad.Search.Button"">
       <Children>
         <EditableTextWidget UpdateChildrenStates=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""12"" MarginRight=""12"" MarginTop=""4"" MarginBottom=""4"" Brush=""SaveLoad.Search.InputText"" Brush.FontSize=""18"" DefaultSearchText=""@PerkQOLSearchPlaceholder"" Text=""@PerkQOLSearchText"" />
       </Children>
     </BrushWidget>
-    <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""150"">
+    <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""180"">
       <Children>
         <GridWidget DataSource=""{PerkHighlightRoles}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""CoverChildren"" DefaultCellWidth=""215"" DefaultCellHeight=""30"" ColumnCount=""2"">
           <ItemTemplate>
@@ -1268,80 +1313,141 @@ namespace PerkQOL
             </ListPanel>
           </ItemTemplate>
         </GridWidget>
-        <ListPanel IsVisible=""@IsPerkQOLCaptainFilterVisible"" WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""Fixed"" SuggestedHeight=""26"" HorizontalAlignment=""Right"" VerticalAlignment=""Top"" MarginTop=""122"" MarginRight=""2"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
+        <ListPanel IsVisible=""@IsPerkQOLCaptainFilterVisible"" WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""Fixed"" SuggestedHeight=""48"" HorizontalAlignment=""Left"" VerticalAlignment=""Top"" MarginTop=""132"" MarginLeft=""240"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
+          <Children>
+            <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""40"" SuggestedHeight=""43"" VerticalAlignment=""Center"" DoNotAcceptEvents=""true"">
               <Children>
-                <DropdownWidget Id=""CaptainTroopDropdown"" DataSource=""{PerkQOLCaptainFilter}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""100"" SuggestedHeight=""26"" ListPanel=""SelectionList"" Button=""DropdownButton"" TextWidget=""DropdownButton\SelectedText"" CurrentSelectedIndex=""@SelectedIndex"">
-                  <Children>
-                    <ButtonWidget Id=""DropdownButton"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""100"" SuggestedHeight=""26"" Sprite=""BlankWhiteSquare_9"" Color=""#2A2118FF"" ButtonType=""Toggle"" DoNotPassEventsToChildren=""true"" UpdateChildrenStates=""true"" ClipContents=""true"">
-                      <Children>
-                        <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""1"" VerticalAlignment=""Bottom"" Sprite=""BlankWhiteSquare_9"" Color=""#C1A57BFF"" DoNotAcceptEvents=""true"" />
-                        <TextWidget Id=""SelectedText"" DataSource=""{SelectedItem}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Center"" Text=""@StringItem"" />
-                      </Children>
-                    </ButtonWidget>
-                    <ListPanel Id=""SelectionList"" DataSource=""{ItemList}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""160"" Sprite=""BlankWhiteSquare_9"" Color=""#1A120CFF"" IsVisible=""false"" StackLayout.LayoutMethod=""VerticalTopToBottom"" ClipContents=""true"">
-                      <ItemTemplate>
-                        <ButtonWidget Id=""DropdownItemButton"" DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""160"" SuggestedHeight=""22"" ButtonType=""Radio"" UpdateChildrenStates=""true"" Brush=""Standard.DropdownItem"" ClipContents=""true"">
-                          <Children>
-                            <TextWidget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""148"" MarginLeft=""6"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Left"" Text=""@StringItem"" />
-                          </Children>
-                        </ButtonWidget>
-                      </ItemTemplate>
-                    </ListPanel>
-                  </Children>
-                </DropdownWidget>
-                <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""24"" SuggestedHeight=""23"" VerticalAlignment=""Center"" MarginLeft=""6"" Command.Click=""ExecuteTogglePerkQOLFlagMenu"" Sprite=""PartyScreen\recruit_prisoner"" ClipContents=""true"" />
-              </Children>
-            </ListPanel>
-      </Children>
-    </Widget>
-    <Widget IsVisible=""@IsPerkQOLFlagMenuOpen"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""248"" HorizontalAlignment=""Right"" MarginTop=""4"" Sprite=""BlankWhiteSquare_9"" Color=""#1A120CFF"">
-              <Children>
-                <GridWidget DataSource=""{PerkQOLCaptainFlags}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""CoverChildren"" MarginLeft=""4"" MarginTop=""4"" MarginBottom=""4"" DefaultCellWidth=""120"" DefaultCellHeight=""26"" ColumnCount=""2"">
-                  <ItemTemplate>
-                    <ListPanel WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
-                      <Children>
-                        <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""22"" SuggestedHeight=""22"" VerticalAlignment=""Center"" Brush=""SPOptions.Checkbox.Empty.Button"" ButtonType=""Toggle"" IsSelected=""@IsSelected"" ToggleIndicator=""ToggleIndicator"" UpdateChildrenStates=""true"">
-                          <Children>
-                            <ImageWidget Id=""ToggleIndicator"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""SPOptions.Checkbox.Full.Button"" />
-                          </Children>
-                        </ButtonWidget>
-                        <TextWidget WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""CoverChildren"" VerticalAlignment=""Center"" MarginLeft=""4"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""16"" Text=""@Name"" />
-                      </Children>
-                    </ListPanel>
-                  </ItemTemplate>
-                </GridWidget>
-                <ListPanel WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""CoverChildren"" MarginLeft=""6"" MarginRight=""6"" MarginBottom=""6"" StackLayout.LayoutMethod=""VerticalTopToBottom"">
-                  <Children>
-                    <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""22"" Sprite=""BlankWhiteSquare_9"" Color=""#100C09E6"" ClipContents=""true"">
-                      <Children>
-                        <EditableTextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""16"" Text=""@PerkQOLTemplateName"" />
-                      </Children>
-                    </Widget>
-                    <ListPanel WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""22"" MarginTop=""4"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
-                      <Children>
-                        <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""74"" SuggestedHeight=""22"" MarginRight=""4"" Sprite=""BlankWhiteSquare_9"" Color=""#2A2118FF"" Command.Click=""ExecuteSavePerkQOLTemplate"" UpdateChildrenStates=""true"">
-                          <Children>
-                            <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateSaveLabel"" />
-                          </Children>
-                        </ButtonWidget>
-                        <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""74"" SuggestedHeight=""22"" MarginRight=""4"" Sprite=""BlankWhiteSquare_9"" Color=""#2A2118FF"" Command.Click=""ExecuteUpdatePerkQOLTemplate"" UpdateChildrenStates=""true"">
-                          <Children>
-                            <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateUpdateLabel"" />
-                          </Children>
-                        </ButtonWidget>
-                        <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""74"" SuggestedHeight=""22"" Sprite=""BlankWhiteSquare_9"" Color=""#2A2118FF"" Command.Click=""ExecuteDeletePerkQOLTemplate"" UpdateChildrenStates=""true"">
-                          <Children>
-                            <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateDeleteLabel"" />
-                          </Children>
-                        </ButtonWidget>
-                      </Children>
-                    </ListPanel>
-                  </Children>
-                </ListPanel>
+                <ButtonWidget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""60"" SuggestedHeight=""70"" VerticalAlignment=""Center"" HorizontalAlignment=""Center"" Command.Click=""ExecutePerkQOLCaptainPrevious"" Brush=""SPOptions.Dropdown.Left.Button"" />
               </Children>
             </Widget>
+            <AnimatedDropdownWidget Id=""CaptainTroopDropdown"" DataSource=""{PerkQOLCaptainFilter}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""150"" SuggestedHeight=""43"" VerticalAlignment=""Center"" DropdownContainerWidget=""DropdownClipWidget\DropdownContainerWidget"" ListPanel=""DropdownClipWidget\DropdownContainerWidget\ScrollablePanel\ClipRect\PrimaryUsageSelectorList"" Button=""DropdownButton"" CurrentSelectedIndex=""@SelectedIndex"" TextWidget=""DropdownButton\SelectedTextWidget"" DropdownClipWidget=""DropdownClipWidget"" ScrollbarWidget=""DropdownClipWidget\DropdownContainerWidget\VerticalScrollbar"">
+              <Children>
+                <ButtonWidget Id=""DropdownButton"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" DoNotPassEventsToChildren=""true"" Brush=""SPOptions.Dropdown.Center"">
+                  <Children>
+                    <ScrollingRichTextWidget Id=""SelectedTextWidget"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"" MarginLeft=""8"" MarginRight=""8"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""18"" IsAutoScrolling=""false"" ScrollOnHoverWidget=""..\DropdownButton"" />
+                  </Children>
+                </ButtonWidget>
+                <Widget Id=""DropdownClipWidget"" WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""Fixed"" ClipContents=""true"" WidgetToCopyHeightFrom=""DropdownContainerWidget\ScrollablePanel"">
+                  <Children>
+                    <BrushWidget Id=""DropdownContainerWidget"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" VerticalAlignment=""Bottom"" SuggestedWidth=""190"" SuggestedHeight=""280"" HorizontalAlignment=""Center"" Brush=""SPOptions.Dropdown.Extension"">
+                      <Children>
+                        <ScrollablePanel Id=""ScrollablePanel"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""CoverChildren"" AutoHideScrollBars=""true"" ClipRect=""ClipRect"" MarginBottom=""12"" VerticalAlignment=""Bottom"" InnerPanel=""ClipRect\PrimaryUsageSelectorList"" VerticalScrollbar=""..\VerticalScrollbar"">
+                          <Children>
+                            <Widget Id=""ClipRect"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""CoverChildren"" ClipContents=""true"" MaxHeight=""220"">
+                              <Children>
+                                <ListPanel Id=""PrimaryUsageSelectorList"" DataSource=""{ItemList}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""CoverChildren"" HorizontalAlignment=""Center"" StackLayout.LayoutMethod=""VerticalTopToBottom"">
+                                  <ItemTemplate>
+                                    <ButtonWidget Id=""DropdownItemButton"" DoNotUseCustomScale=""true"" DoNotPassEventsToChildren=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""29"" MarginLeft=""10"" MarginRight=""10"" HorizontalAlignment=""Center"" VerticalAlignment=""Bottom"" ButtonType=""Radio"" UpdateChildrenStates=""true"" IsEnabled=""@CanBeSelected"" Brush=""Standard.DropdownItem.SoundBrush"">
+                                      <Children>
+                                        <ImageWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""5"" MarginRight=""5"" Brush=""Standard.DropdownItem"" />
+                                        <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" HorizontalAlignment=""Center"" MarginLeft=""8"" MarginRight=""8"" VerticalAlignment=""Center"" Brush=""SPOptions.Dropdown.Item.Text"" Brush.FontSize=""18"" Text=""@StringItem"" />
+                                      </Children>
+                                    </ButtonWidget>
+                                  </ItemTemplate>
+                                </ListPanel>
+                              </Children>
+                            </Widget>
+                          </Children>
+                        </ScrollablePanel>
+                        <ScrollbarWidget Id=""VerticalScrollbar"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""8"" HorizontalAlignment=""Right"" VerticalAlignment=""Center"" MarginTop=""8"" MarginBottom=""12"" MarginRight=""6"" AlignmentAxis=""Vertical"" Handle=""VerticalScrollbarHandle"" IsVisible=""false"" MaxValue=""100"" MinValue=""0"">
+                          <Children>
+                            <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""4"" HorizontalAlignment=""Center"" Sprite=""BlankWhiteSquare_9"" AlphaFactor=""0.2"" Color=""#5A4033FF"" />
+                            <ImageWidget Id=""VerticalScrollbarHandle"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""8"" SuggestedHeight=""10"" HorizontalAlignment=""Center"" Sprite=""BlankWhiteSquare_9"" Color=""#C1A57BFF"" />
+                          </Children>
+                        </ScrollbarWidget>
+                      </Children>
+                    </BrushWidget>
+                  </Children>
+                </Widget>
+              </Children>
+            </AnimatedDropdownWidget>
+            <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""40"" SuggestedHeight=""43"" VerticalAlignment=""Center"" DoNotAcceptEvents=""true"">
+              <Children>
+                <ButtonWidget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""60"" SuggestedHeight=""70"" VerticalAlignment=""Center"" HorizontalAlignment=""Center"" Command.Click=""ExecutePerkQOLCaptainNext"" Brush=""SPOptions.Dropdown.Right.Button"" />
+              </Children>
+            </Widget>
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""36"" SuggestedHeight=""36"" VerticalAlignment=""Center"" MarginLeft=""8"" Command.Click=""ExecuteTogglePerkQOLFlagMenu"" Sprite=""PartyScreen\recruit_prisoner"" ClipContents=""true"" />
+          </Children>
+        </ListPanel>
+      </Children>
+    </Widget>
   </Children>
 </ListPanel>";
+    }
+
+    /// <summary>
+    /// Flag editor as its own window: a dimmed screen and the standard popup frame, so the character sheet does not move.
+    /// Clicking the dimmed area closes it.
+    /// </summary>
+    [PrefabExtension("CharacterDeveloper", "Window/Widget/Children")]
+    public sealed class PerkHighlightFlagWindowPatch : PrefabExtensionInsertPatch
+    {
+        public override InsertType Type => InsertType.Child;
+
+        public override int Index => int.MaxValue;
+
+        [PrefabExtensionText]
+        public string Content => @"
+<Widget IsVisible=""@IsPerkQOLFlagMenuOpen"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"">
+  <Children>
+    <ButtonWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Command.Click=""ExecuteClosePerkQOLFlagMenu"" DoNotPassEventsToChildren=""true"">
+      <Children>
+        <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""BlankWhiteSquare_9"" Color=""#000000FF"" AlphaFactor=""0.6"" DoNotAcceptEvents=""true"" />
+      </Children>
+    </ButtonWidget>
+    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""640"" SuggestedHeight=""500"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"">
+      <Children>
+        <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""StdAssets\Popup\canvas"" />
+        <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""40"" MarginTop=""22"" Brush=""SPOptions.GameKeysGroup.Title.Text"" Brush.FontSize=""32"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLFlagWindowTitle"" />
+        <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""20"" MarginTop=""68"" MarginLeft=""48"" MarginRight=""48"" Sprite=""StdAssets\Popup\divider"" />
+        <GridWidget DataSource=""{PerkQOLCaptainFlags}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""CoverChildren"" MarginLeft=""40"" MarginRight=""40"" MarginTop=""104"" DefaultCellWidth=""280"" DefaultCellHeight=""36"" ColumnCount=""2"">
+          <ItemTemplate>
+            <ListPanel WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
+              <Children>
+                <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""26"" SuggestedHeight=""26"" VerticalAlignment=""Center"" Brush=""SPOptions.Checkbox.Empty.Button"" ButtonType=""Toggle"" IsSelected=""@IsSelected"" ToggleIndicator=""ToggleIndicator"" UpdateChildrenStates=""true"">
+                  <Children>
+                    <ImageWidget Id=""ToggleIndicator"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""SPOptions.Checkbox.Full.Button"" />
+                  </Children>
+                </ButtonWidget>
+                <TextWidget WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""CoverChildren"" VerticalAlignment=""Center"" MarginLeft=""8"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""18"" Text=""@Name"" />
+              </Children>
+            </ListPanel>
+          </ItemTemplate>
+        </GridWidget>
+        <BrushWidget UpdateChildrenStates=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""36"" MarginTop=""340"" MarginLeft=""48"" MarginRight=""48"" Brush=""SaveLoad.Search.Button"">
+          <Children>
+            <EditableTextWidget UpdateChildrenStates=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""12"" MarginRight=""12"" MarginTop=""4"" MarginBottom=""4"" Brush=""SaveLoad.Search.InputText"" Brush.FontSize=""18"" Text=""@PerkQOLTemplateName"" />
+          </Children>
+        </BrushWidget>
+        <ListPanel WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""Fixed"" SuggestedHeight=""46"" HorizontalAlignment=""Right"" VerticalAlignment=""Bottom"" MarginRight=""36"" MarginBottom=""28"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
+          <Children>
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""110"" SuggestedHeight=""42"" MarginLeft=""6"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteSavePerkQOLTemplate"" UpdateChildrenStates=""true"">
+              <Children>
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""8"" MarginRight=""8"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""20"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateSaveLabel"" />
+              </Children>
+            </ButtonWidget>
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""120"" SuggestedHeight=""42"" MarginLeft=""6"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteUpdatePerkQOLTemplate"" UpdateChildrenStates=""true"">
+              <Children>
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""8"" MarginRight=""8"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""20"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateUpdateLabel"" />
+              </Children>
+            </ButtonWidget>
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""120"" SuggestedHeight=""42"" MarginLeft=""6"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteDeletePerkQOLTemplate"" UpdateChildrenStates=""true"">
+              <Children>
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""8"" MarginRight=""8"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""20"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateDeleteLabel"" />
+              </Children>
+            </ButtonWidget>
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""110"" SuggestedHeight=""42"" MarginLeft=""6"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteClosePerkQOLFlagMenu"" UpdateChildrenStates=""true"">
+              <Children>
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""8"" MarginRight=""8"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""20"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLFlagWindowCloseLabel"" />
+              </Children>
+            </ButtonWidget>
+          </Children>
+        </ListPanel>
+        <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""frame_9"" ExtendLeft=""18"" ExtendRight=""18"" ExtendTop=""18"" ExtendBottom=""18"" DoNotAcceptEvents=""true"" />
+      </Children>
+    </Widget>
+  </Children>
+</Widget>";
     }
 
     /// <summary>Replaces the skill name so its font color comes from the skill view-model.</summary>

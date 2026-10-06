@@ -403,4 +403,147 @@ namespace PerkQOL
             return y is float value ? value : 0f;
         }
     }
+
+    /// <summary>
+    /// The options dropdown opens downward from its button. This one is on the bottom row, so that list would run under
+    /// the HUD. Keep the open list above the button, and keep the drift-close from treating that move as the screen scrolling.
+    /// </summary>
+    internal static class CaptainAnimatedDropdownOpensUp
+    {
+        private static PropertyInfo _id;
+        private static PropertyInfo _clip;
+        private static PropertyInfo _button;
+        private static PropertyInfo _scaledHeight;
+        private static PropertyInfo _scaledY;
+        private static PropertyInfo _globalPosition;
+        private static PropertyInfo _areaRect;
+        private static PropertyInfo _topLeft;
+        private static FieldInfo _openPosition;
+        private static FieldInfo _isOpen;
+
+        internal static void TryPatch(Harmony harmony)
+        {
+            Type type = AccessTools.TypeByName("TaleWorlds.GauntletUI.AnimatedDropdownWidget");
+            if (type == null)
+            {
+                return;
+            }
+
+            MethodInfo late = AccessTools.Method(type, "OnLateUpdate");
+            MethodInfo position = AccessTools.Method(type, "UpdateListPanelPosition");
+            if (late != null)
+            {
+                harmony.Patch(late, prefix: new HarmonyMethod(typeof(CaptainAnimatedDropdownOpensUp), nameof(PinOpenPosition)));
+            }
+
+            if (position != null)
+            {
+                harmony.Patch(position, postfix: new HarmonyMethod(typeof(CaptainAnimatedDropdownOpensUp), nameof(OpenUpward)));
+            }
+        }
+
+        private static bool IsCaptainDropdown(object instance)
+        {
+            _id ??= instance.GetType().GetProperty("Id");
+            return string.Equals(_id?.GetValue(instance) as string, "CaptainTroopDropdown", StringComparison.Ordinal);
+        }
+
+        private static void PinOpenPosition(object __instance)
+        {
+            try
+            {
+                if (__instance == null || !IsCaptainDropdown(__instance))
+                {
+                    return;
+                }
+
+                _isOpen ??= __instance.GetType().GetField("_isOpen", BindingFlags.Instance | BindingFlags.NonPublic);
+                if (!(_isOpen?.GetValue(__instance) is bool open) || !open)
+                {
+                    return;
+                }
+
+                object clip = Clip(__instance);
+                if (clip == null)
+                {
+                    return;
+                }
+
+                _openPosition ??= __instance.GetType().GetField("_dropdownOpenPosition", BindingFlags.Instance | BindingFlags.NonPublic);
+                _areaRect ??= clip.GetType().GetProperty("AreaRect");
+                object rect = _areaRect?.GetValue(clip);
+                if (rect == null || _openPosition == null)
+                {
+                    return;
+                }
+
+                _topLeft ??= rect.GetType().GetProperty("TopLeft");
+                object topLeft = _topLeft?.GetValue(rect);
+                if (topLeft != null)
+                {
+                    _openPosition.SetValue(__instance, topLeft);
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.Print("PerkQOL: captain dropdown anchor failed (" + e.Message + ")");
+            }
+        }
+
+        private static void OpenUpward(object __instance)
+        {
+            try
+            {
+                if (__instance == null || !IsCaptainDropdown(__instance))
+                {
+                    return;
+                }
+
+                object clip = Clip(__instance);
+                object button = Button(__instance);
+                if (clip == null || button == null)
+                {
+                    return;
+                }
+
+                _scaledHeight ??= clip.GetType().GetProperty("ScaledSuggestedHeight");
+                _scaledY ??= clip.GetType().GetProperty("ScaledPositionYOffset");
+                _globalPosition ??= button.GetType().GetProperty("GlobalPosition");
+                if (_scaledHeight == null || _scaledY == null || _globalPosition == null)
+                {
+                    return;
+                }
+
+                float height = _scaledHeight.GetValue(clip) is float value ? value : 0f;
+                _scaledY.SetValue(clip, Y(_globalPosition.GetValue(button)) - height);
+            }
+            catch (Exception e)
+            {
+                Debug.Print("PerkQOL: captain dropdown position failed (" + e.Message + ")");
+            }
+        }
+
+        private static object Clip(object instance)
+        {
+            _clip ??= instance.GetType().GetProperty("DropdownClipWidget");
+            return _clip?.GetValue(instance);
+        }
+
+        private static object Button(object instance)
+        {
+            _button ??= instance.GetType().GetProperty("Button");
+            return _button?.GetValue(instance);
+        }
+
+        private static float Y(object vector)
+        {
+            if (vector == null)
+            {
+                return 0f;
+            }
+
+            object y = vector.GetType().GetField("Y")?.GetValue(vector) ?? vector.GetType().GetProperty("Y")?.GetValue(vector);
+            return y is float value ? value : 0f;
+        }
+    }
 }

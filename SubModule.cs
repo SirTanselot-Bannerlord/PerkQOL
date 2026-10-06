@@ -21,6 +21,7 @@ namespace PerkQOL
             Harmony harmony = new Harmony(HarmonyId);
             harmony.PatchAll(typeof(SubModule).Assembly);
             CaptainDropdownOpensUp.TryPatch(harmony);
+            CaptainAnimatedDropdownOpensUp.TryPatch(harmony);
         }
 
         protected override void OnBeforeInitialModuleScreenSetAsRoot()
