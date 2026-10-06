@@ -832,6 +832,7 @@ namespace PerkQOL
             PerkHighlighter.ApplyPreset((PerkHighlighter.CaptainTroopClass)selector.SelectedIndex);
         }
 
+        [DataSourceMethod]
         public void ExecuteSavePerkQOLTemplate()
         {
             if (!CaptainTemplates.TryAdd(PerkQOLTemplateName, PerkHighlighter.CurrentFlags, PerkHighlighter.IncludeUntagged, out TextObject error))
@@ -843,6 +844,7 @@ namespace PerkQOL
             ReloadTemplateDropdown();
         }
 
+        [DataSourceMethod]
         public void ExecuteUpdatePerkQOLTemplate()
         {
             if (!CaptainTemplates.TryUpdate(PerkQOLTemplateName, PerkHighlighter.CurrentFlags, PerkHighlighter.IncludeUntagged, out TextObject error))
@@ -854,6 +856,7 @@ namespace PerkQOL
             ReloadTemplateDropdown();
         }
 
+        [DataSourceMethod]
         public void ExecuteDeletePerkQOLTemplate()
         {
             if (!CaptainTemplates.TryDelete(PerkQOLTemplateName, out TextObject error))
@@ -879,6 +882,7 @@ namespace PerkQOL
 
         private void OnFlagToggled(CaptainFlagVM item) => PerkHighlighter.SetFlag(item.Option, item.IsSelected);
 
+        [DataSourceMethod]
         public void ExecuteTogglePerkQOLFlagMenu() => IsPerkQOLFlagMenuOpen = !_isFlagMenuOpen;
 
         /// <summary>Pulls the flag ticks and the preset label back in line with the highlighter.</summary>
@@ -1241,11 +1245,7 @@ namespace PerkQOL
                     </ListPanel>
                   </Children>
                 </DropdownWidget>
-                <ButtonWidget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""24"" SuggestedHeight=""20"" VerticalAlignment=""Center"" MarginLeft=""4"" Command.Click=""ExecuteTogglePerkQOLFlagMenu"" DoNotPassEventsToChildren=""true"">
-                  <Children>
-                    <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""PartyScreen\upgrade_icon"" DoNotAcceptEvents=""true"" />
-                  </Children>
-                </ButtonWidget>
+                <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""24"" SuggestedHeight=""23"" VerticalAlignment=""Center"" MarginLeft=""6"" Command.Click=""ExecuteTogglePerkQOLFlagMenu"" Sprite=""PartyScreen\recruit_prisoner"" ClipContents=""true"" />
               </Children>
             </ListPanel>
         <Widget IsVisible=""@IsPerkQOLFlagMenuOpen"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""248"" HorizontalAlignment=""Right"" VerticalAlignment=""Top"" MarginTop=""32"" MarginRight=""2"" Sprite=""BlankWhiteSquare_9"" Color=""#1A120CFF"">
@@ -1300,7 +1300,7 @@ namespace PerkQOL
 </ListPanel>";
     }
 
-    /// <summary>White outline on a skill card when any of its perks is highlighted.</summary>
+    /// <summary>A short line under the skill name when any of its perks is highlighted. Width follows the name.</summary>
     [PrefabExtension("SkillGridItem", "descendant::SkillGridItemButtonWidget/Children")]
     public sealed class PerkHighlightSkillFramePatch : PrefabExtensionInsertPatch
     {
@@ -1310,19 +1310,17 @@ namespace PerkQOL
 
         [PrefabExtensionText]
         public string Content => @"
-<Widget IsVisible=""@IsPerkQOLSkillHighlighted"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" DoNotAcceptEvents=""true"">
+<Widget IsVisible=""@IsPerkQOLSkillHighlighted"" WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""Fixed"" SuggestedHeight=""22"" VerticalAlignment=""Top"" HorizontalAlignment=""Left"" MarginLeft=""10"" DoNotAcceptEvents=""true"">
   <Children>
-    <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""2"" VerticalAlignment=""Top"" Sprite=""BlankWhiteSquare_9"" Color=""#FFFFFFFF"" DoNotAcceptEvents=""true"" />
-    <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""2"" VerticalAlignment=""Bottom"" Sprite=""BlankWhiteSquare_9"" Color=""#FFFFFFFF"" DoNotAcceptEvents=""true"" />
-    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""2"" HorizontalAlignment=""Left"" Sprite=""BlankWhiteSquare_9"" Color=""#FFFFFFFF"" DoNotAcceptEvents=""true"" />
-    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""2"" HorizontalAlignment=""Right"" Sprite=""BlankWhiteSquare_9"" Color=""#FFFFFFFF"" DoNotAcceptEvents=""true"" />
+    <TextWidget WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""StretchToParent"" Brush=""CharacterDeveloper.GridSkillName.Text"" Text=""@NameText"" AlphaFactor=""0"" DoNotAcceptEvents=""true"" />
+    <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""1"" VerticalAlignment=""Bottom"" MarginBottom=""2"" Sprite=""BlankWhiteSquare_9"" Color=""#E4D3A6CC"" DoNotAcceptEvents=""true"" />
   </Children>
 </Widget>";
     }
 
     /// <summary>
-    /// The upgrade icon lives in the party-screen atlas, which the character screen does not load. Load it with the screen
-    /// and unload it again only if this screen was the one that loaded it.
+    /// The prisoner-recruit icon lives in the party-screen atlas, which the character screen does not load. Load it with
+    /// the screen and unload it again only if this screen was the one that loaded it.
     /// </summary>
     [HarmonyPatch]
     internal static class PartyScreenSpriteLoadPatch

@@ -288,6 +288,7 @@ namespace PerkQOL
         private static PropertyInfo _marginTop;
         private static PropertyInfo _isVisible;
         private static FieldInfo _openFrameCounter;
+        private static bool _positioning;
 
         internal static void TryPatch(Harmony harmony)
         {
@@ -303,6 +304,12 @@ namespace PerkQOL
 
         private static void Postfix(object __instance)
         {
+            if (_positioning || __instance == null)
+            {
+                return;
+            }
+
+            _positioning = true;
             try
             {
                 if (__instance == null)
@@ -350,6 +357,10 @@ namespace PerkQOL
             catch (Exception e)
             {
                 Debug.Print("PerkQOL: captain dropdown position failed (" + e.Message + ")");
+            }
+            finally
+            {
+                _positioning = false;
             }
         }
 
