@@ -538,7 +538,7 @@ namespace PerkQOL
 
         [PrefabExtensionText]
         public string Content => @"
-<Widget IsVisible=""@IsPerkQOLRespecVisible"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""430"" SuggestedHeight=""30"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"" MarginTop=""770"" PositionXOffset=""245"">
+<Widget IsVisible=""@IsPerkQOLRespecVisible"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""430"" SuggestedHeight=""30"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"" MarginTop=""830"" PositionXOffset=""245"">
   <Children>
     <ListPanel WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""StretchToParent"" HorizontalAlignment=""Left"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
       <Children>
