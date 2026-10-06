@@ -68,8 +68,7 @@ namespace PerkQOL
             [Mode.ClanLeader] = new TextObject("{=PQOL_HL_ClanLeader}Clan Leader"),
         };
 
-        internal static readonly TextObject SearchPlaceholder = new TextObject("{=PQOL_HL_Search}Search perks");
-        internal static readonly TextObject SearchLabel = new TextObject("{=PQOL_HL_SearchLabel}Search perks:");
+        internal static readonly TextObject SearchPlaceholder = new TextObject("{=PQOL_HL_Filter}Filter...");
 
         private static readonly TextObject[] CaptainFilterNames =
         {
@@ -460,6 +459,25 @@ namespace PerkQOL
             return false;
         }
 
+        /// <summary>
+        /// A typed filter narrows the ticked roles: a perk lights only when it matches both. With no roles ticked,
+        /// the text is the whole filter and uses the white frame. An empty box leaves the role ticks alone.
+        /// </summary>
+        internal static bool PerkIsHighlighted(PerkObject perk, out bool useRoleColors)
+        {
+            bool searchActive = HasActiveSearch();
+            bool role = TryGetRoleColors(perk, out _, out _);
+            bool search = searchActive && MatchesSearch(perk);
+            if (searchActive && Selected.Count > 0)
+            {
+                useRoleColors = true;
+                return role && search;
+            }
+
+            useRoleColors = role && !searchActive;
+            return searchActive ? search : role;
+        }
+
         internal static bool SkillHasMatch(SkillObject skill)
         {
             if (skill == null || (Selected.Count == 0 && !HasActiveSearch()))
@@ -469,12 +487,7 @@ namespace PerkQOL
 
             foreach (PerkObject perk in PerkObject.All)
             {
-                if (perk.Skill != skill)
-                {
-                    continue;
-                }
-
-                if (TryGetRoleColors(perk, out _, out _) || MatchesSearch(perk))
+                if (perk.Skill == skill && PerkIsHighlighted(perk, out _))
                 {
                     return true;
                 }
@@ -720,14 +733,14 @@ namespace PerkQOL
 
         public PerkHighlightScreenMixin(CharacterDeveloperVM vm) : base(vm)
         {
-            // Two columns filled row by row, with All alone on the last row. The right column grows in command scope.
+            // Two columns, row by row. Captain is last in the right column so the troop menu can sit in the cell under it.
             _perkHighlightRoles = new MBBindingList<PerkHighlightRoleVM>();
             foreach (PerkHighlighter.Mode role in new[]
             {
-                PerkHighlighter.Mode.PersonalCombat, PerkHighlighter.Mode.Captain,
-                PerkHighlighter.Mode.PersonalCampaign, PerkHighlighter.Mode.PartyLeader,
-                PerkHighlighter.Mode.PartyRole, PerkHighlighter.Mode.ClanLeader,
-                PerkHighlighter.Mode.Governor, PerkHighlighter.Mode.ArmyCommander,
+                PerkHighlighter.Mode.PersonalCombat, PerkHighlighter.Mode.PartyLeader,
+                PerkHighlighter.Mode.PersonalCampaign, PerkHighlighter.Mode.ClanLeader,
+                PerkHighlighter.Mode.PartyRole, PerkHighlighter.Mode.ArmyCommander,
+                PerkHighlighter.Mode.Governor, PerkHighlighter.Mode.Captain,
                 PerkHighlighter.Mode.All,
             })
             {
@@ -758,9 +771,6 @@ namespace PerkQOL
 
         [DataSourceProperty]
         public string PerkQOLSearchPlaceholder => PerkHighlighter.SearchPlaceholder.ToString();
-
-        [DataSourceProperty]
-        public string PerkQOLSearchLabel => PerkHighlighter.SearchLabel.ToString();
 
         [DataSourceProperty]
         public string PerkQOLSearchText
@@ -1045,16 +1055,15 @@ namespace PerkQOL
         internal void Refresh()
         {
             bool role = PerkHighlighter.TryGetRoleColors(_perk, out Color left, out Color right);
-            bool search = PerkHighlighter.MatchesSearch(_perk);
-            if (role)
+            bool show = PerkHighlighter.PerkIsHighlighted(_perk, out bool useRoleColors);
+            if (show && useRoleColors && role)
             {
                 PerkQOLHighlightLeftColor = left;
                 PerkQOLHighlightRightColor = right;
             }
 
-            IsPerkQOLHighlighted = role;
-            // Role colours win when both match; search still lights the skill via MatchesSearch.
-            IsPerkQOLSearchHighlighted = search && !role;
+            IsPerkQOLHighlighted = show && useRoleColors;
+            IsPerkQOLSearchHighlighted = show && !useRoleColors;
         }
 
         [DataSourceProperty]
@@ -1184,8 +1193,8 @@ namespace PerkQOL
     }
 
     /// <summary>
-    /// Search label plus input, then the role tickboxes. The captain preset sits on the Captain row, with the party
-    /// upgrade icon opening the flag ticks. Both show only while Captain is on.
+    /// Filter box, then the role tickboxes. Captain is the last row of the right column; its troop menu sits in the
+    /// empty cell under that label, and the flag list opens beneath the grid.
     /// </summary>
     [PrefabExtension("CharacterDeveloper", "descendant::Widget[@VisualDefinition='RightPanel']/Children")]
     public sealed class PerkHighlightControlsPatch : PrefabExtensionInsertPatch
@@ -1198,16 +1207,11 @@ namespace PerkQOL
         public string Content => @"
 <ListPanel IsVisible=""@IsPerkQOLHighlightVisible"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""430"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"" MarginTop=""575"" PositionXOffset=""245"" StackLayout.LayoutMethod=""VerticalTopToBottom"">
   <Children>
-    <ListPanel WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""28"" MarginBottom=""4"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
+    <BrushWidget UpdateChildrenStates=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""36"" MarginBottom=""6"" Brush=""SaveLoad.Search.Button"">
       <Children>
-        <TextWidget WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""CoverChildren"" VerticalAlignment=""Center"" MarginRight=""8"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""18"" Text=""@PerkQOLSearchLabel"" />
-        <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""BlankWhiteSquare_9"" Color=""#100C09E6"" ClipContents=""true"">
-          <Children>
-            <EditableTextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""8"" MarginRight=""8"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""18"" Text=""@PerkQOLSearchText"" />
-          </Children>
-        </Widget>
+        <EditableTextWidget UpdateChildrenStates=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""12"" MarginRight=""12"" MarginTop=""4"" MarginBottom=""4"" Brush=""SaveLoad.Search.InputText"" Brush.FontSize=""18"" DefaultSearchText=""@PerkQOLSearchPlaceholder"" Text=""@PerkQOLSearchText"" />
       </Children>
-    </ListPanel>
+    </BrushWidget>
     <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""150"">
       <Children>
         <GridWidget DataSource=""{PerkHighlightRoles}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""CoverChildren"" DefaultCellWidth=""215"" DefaultCellHeight=""30"" ColumnCount=""2"">
@@ -1224,7 +1228,7 @@ namespace PerkQOL
             </ListPanel>
           </ItemTemplate>
         </GridWidget>
-        <ListPanel IsVisible=""@IsPerkQOLCaptainFilterVisible"" WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""Fixed"" SuggestedHeight=""26"" HorizontalAlignment=""Right"" VerticalAlignment=""Top"" MarginTop=""2"" MarginRight=""2"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
+        <ListPanel IsVisible=""@IsPerkQOLCaptainFilterVisible"" WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""Fixed"" SuggestedHeight=""26"" HorizontalAlignment=""Right"" VerticalAlignment=""Top"" MarginTop=""122"" MarginRight=""2"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
               <Children>
                 <DropdownWidget Id=""CaptainTroopDropdown"" DataSource=""{PerkQOLCaptainFilter}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""100"" SuggestedHeight=""26"" ListPanel=""SelectionList"" Button=""DropdownButton"" TextWidget=""DropdownButton\SelectedText"" CurrentSelectedIndex=""@SelectedIndex"">
                   <Children>
@@ -1248,7 +1252,9 @@ namespace PerkQOL
                 <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""24"" SuggestedHeight=""23"" VerticalAlignment=""Center"" MarginLeft=""6"" Command.Click=""ExecuteTogglePerkQOLFlagMenu"" Sprite=""PartyScreen\recruit_prisoner"" ClipContents=""true"" />
               </Children>
             </ListPanel>
-        <Widget IsVisible=""@IsPerkQOLFlagMenuOpen"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""248"" HorizontalAlignment=""Right"" VerticalAlignment=""Top"" MarginTop=""32"" MarginRight=""2"" Sprite=""BlankWhiteSquare_9"" Color=""#1A120CFF"">
+      </Children>
+    </Widget>
+    <Widget IsVisible=""@IsPerkQOLFlagMenuOpen"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""248"" HorizontalAlignment=""Right"" MarginTop=""4"" Sprite=""BlankWhiteSquare_9"" Color=""#1A120CFF"">
               <Children>
                 <GridWidget DataSource=""{PerkQOLCaptainFlags}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""CoverChildren"" MarginLeft=""4"" MarginTop=""4"" MarginBottom=""4"" DefaultCellWidth=""120"" DefaultCellHeight=""26"" ColumnCount=""2"">
                   <ItemTemplate>
@@ -1294,8 +1300,6 @@ namespace PerkQOL
                 </ListPanel>
               </Children>
             </Widget>
-      </Children>
-    </Widget>
   </Children>
 </ListPanel>";
     }
