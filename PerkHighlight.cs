@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Bannerlord.UIExtenderEx.Attributes;
+using HarmonyLib;
 using Bannerlord.UIExtenderEx.Prefabs2;
 using Bannerlord.UIExtenderEx.ViewModels;
 using TaleWorlds.CampaignSystem;
@@ -76,6 +78,50 @@ namespace PerkQOL
             new TextObject("{=PQOL_CF_Ranged}Archer"),
             new TextObject("{=PQOL_CF_Cavalry}Cavalry"),
             new TextObject("{=PQOL_CF_HorseArcher}H. Archer"),
+            new TextObject("{=PQOL_CF_Custom}Custom"),
+        };
+
+        /// <summary>Index of the dropdown row that means "the ticks no longer match a preset".</summary>
+        internal const int CustomPresetIndex = 5;
+
+        private const TroopUsageFlags AllTroopFlags =
+            TroopUsageFlags.OnFoot | TroopUsageFlags.Mounted | TroopUsageFlags.Melee | TroopUsageFlags.Ranged
+            | TroopUsageFlags.OneHandedUser | TroopUsageFlags.ShieldUser | TroopUsageFlags.TwoHandedUser
+            | TroopUsageFlags.PolearmUser | TroopUsageFlags.BowUser | TroopUsageFlags.ThrownUser
+            | TroopUsageFlags.CrossbowUser;
+
+        internal readonly struct CaptainFlagOption
+        {
+            internal readonly TextObject Name;
+            internal readonly TroopUsageFlags Flag;
+            internal readonly bool Generic;
+
+            internal CaptainFlagOption(TextObject name, TroopUsageFlags flag, bool generic = false)
+            {
+                Name = name;
+                Flag = flag;
+                Generic = generic;
+            }
+        }
+
+        /// <summary>
+        /// Flags the captain menu can tick. Generic is the untagged captain effects (mask None), not a troop flag.
+        /// Bandit culture is left out on purpose.
+        /// </summary>
+        internal static readonly CaptainFlagOption[] FlagOptions =
+        {
+            new CaptainFlagOption(new TextObject("{=PQOL_FF_OnFoot}On foot"), TroopUsageFlags.OnFoot),
+            new CaptainFlagOption(new TextObject("{=PQOL_FF_Mounted}Mounted"), TroopUsageFlags.Mounted),
+            new CaptainFlagOption(new TextObject("{=PQOL_FF_Melee}Melee"), TroopUsageFlags.Melee),
+            new CaptainFlagOption(new TextObject("{=PQOL_FF_Ranged}Ranged"), TroopUsageFlags.Ranged),
+            new CaptainFlagOption(new TextObject("{=PQOL_FF_OneHanded}1-Handed"), TroopUsageFlags.OneHandedUser),
+            new CaptainFlagOption(new TextObject("{=PQOL_FF_Shield}Shield"), TroopUsageFlags.ShieldUser),
+            new CaptainFlagOption(new TextObject("{=PQOL_FF_TwoHanded}2-Handed"), TroopUsageFlags.TwoHandedUser),
+            new CaptainFlagOption(new TextObject("{=PQOL_FF_Polearm}Polearm"), TroopUsageFlags.PolearmUser),
+            new CaptainFlagOption(new TextObject("{=PQOL_FF_Bow}Bow"), TroopUsageFlags.BowUser),
+            new CaptainFlagOption(new TextObject("{=PQOL_FF_Thrown}Thrown"), TroopUsageFlags.ThrownUser),
+            new CaptainFlagOption(new TextObject("{=PQOL_FF_Crossbow}Crossbow"), TroopUsageFlags.CrossbowUser),
+            new CaptainFlagOption(new TextObject("{=PQOL_FF_Generic}Generic"), TroopUsageFlags.None, true),
         };
 
         private static readonly HashSet<Mode> Selected = new HashSet<Mode>();
@@ -83,8 +129,10 @@ namespace PerkQOL
         private static readonly List<WeakReference<PerkHighlightPerkMixin>> Perks = new List<WeakReference<PerkHighlightPerkMixin>>();
         private static readonly List<WeakReference<PerkHighlightSkillMixin>> Skills = new List<WeakReference<PerkHighlightSkillMixin>>();
 
-        private static CaptainTroopClass _captainFilter = CaptainTroopClass.Any;
+        private static TroopUsageFlags _captainFlags = AllTroopFlags;
+        private static bool _includeUntagged = true;
         private static string _searchText = "";
+        private static WeakReference<PerkHighlightScreenMixin> _screen;
 
         internal static string NameOf(Mode mode) => Names[mode].ToString();
 
@@ -94,16 +142,77 @@ namespace PerkQOL
 
         internal static bool AllSelected => Selected.Count == Roles.Length;
 
-        internal static CaptainTroopClass CaptainFilter
+        /// <summary>Dropdown index: a preset, or <see cref="CustomPresetIndex"/> when the ticks match none.</summary>
+        internal static int PresetIndex()
         {
-            get => _captainFilter;
-            set
+            if (_includeUntagged && _captainFlags == AllTroopFlags)
             {
-                if (value != _captainFilter)
+                return (int)CaptainTroopClass.Any;
+            }
+
+            if (!_includeUntagged)
+            {
+                if (_captainFlags == FormationFlagsOf(CaptainTroopClass.Infantry)) return (int)CaptainTroopClass.Infantry;
+                if (_captainFlags == FormationFlagsOf(CaptainTroopClass.Ranged)) return (int)CaptainTroopClass.Ranged;
+                if (_captainFlags == FormationFlagsOf(CaptainTroopClass.Cavalry)) return (int)CaptainTroopClass.Cavalry;
+                if (_captainFlags == FormationFlagsOf(CaptainTroopClass.HorseArcher)) return (int)CaptainTroopClass.HorseArcher;
+            }
+
+            return CustomPresetIndex;
+        }
+
+        internal static bool IsFlagOn(CaptainFlagOption option) =>
+            option.Generic ? _includeUntagged : _captainFlags.HasAllFlags(option.Flag);
+
+        internal static void BindScreen(PerkHighlightScreenMixin screen) =>
+            _screen = new WeakReference<PerkHighlightScreenMixin>(screen);
+
+        internal static void ApplyPreset(CaptainTroopClass troopClass)
+        {
+            TroopUsageFlags flags = troopClass == CaptainTroopClass.Any ? AllTroopFlags : FormationFlagsOf(troopClass);
+            bool generic = troopClass == CaptainTroopClass.Any;
+            if (flags == _captainFlags && generic == _includeUntagged)
+            {
+                return;
+            }
+
+            _captainFlags = flags;
+            _includeUntagged = generic;
+            RefreshAll();
+            NotifyScreen();
+        }
+
+        internal static void SetFlag(CaptainFlagOption option, bool selected)
+        {
+            if (option.Generic)
+            {
+                if (_includeUntagged == selected)
                 {
-                    _captainFilter = value;
-                    RefreshAll();
+                    return;
                 }
+
+                _includeUntagged = selected;
+            }
+            else
+            {
+                TroopUsageFlags next = selected ? _captainFlags | option.Flag : _captainFlags & ~option.Flag;
+                if (next == _captainFlags)
+                {
+                    return;
+                }
+
+                _captainFlags = next;
+            }
+
+            RefreshAll();
+            NotifyScreen();
+        }
+
+        private static void NotifyScreen()
+        {
+            if (_screen != null && _screen.TryGetTarget(out PerkHighlightScreenMixin screen))
+            {
+                screen.SyncCaptainFlags();
             }
         }
 
@@ -225,12 +334,19 @@ namespace PerkQOL
                 return false;
             }
 
-            if (group != Mode.Captain || _captainFilter == CaptainTroopClass.Any)
+            if (group != Mode.Captain)
             {
                 return true;
             }
 
-            return MaskMatchesFormation(mask, FormationFlagsOf(_captainFilter));
+            // None is "everyone in the formation", which the presets leave off except Any. The flag menu's Generic tick
+            // is that bucket. A real mask matches when every one of its flags is ticked.
+            if (mask == TroopUsageFlags.None)
+            {
+                return _includeUntagged;
+            }
+
+            return MaskMatchesFormation(mask, _captainFlags);
         }
 
         internal static bool MatchesSearch(PerkObject perk)
@@ -457,13 +573,64 @@ namespace PerkQOL
         }
     }
 
+    /// <summary>One troop-flag tick in the captain flag menu. Generic is the untagged captain effects.</summary>
+    public sealed class CaptainFlagVM : ViewModel
+    {
+        private readonly Action<CaptainFlagVM> _onToggled;
+        private bool _isSelected;
+        private bool _suppress;
+
+        internal CaptainFlagVM(PerkHighlighter.CaptainFlagOption option, bool selected, Action<CaptainFlagVM> onToggled)
+        {
+            Option = option;
+            _onToggled = onToggled;
+            _isSelected = selected;
+            Name = option.Name.ToString();
+        }
+
+        internal PerkHighlighter.CaptainFlagOption Option { get; }
+
+        [DataSourceProperty]
+        public string Name { get; }
+
+        [DataSourceProperty]
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (value == _isSelected)
+                {
+                    return;
+                }
+
+                _isSelected = value;
+                OnPropertyChangedWithValue(value);
+                if (!_suppress)
+                {
+                    _onToggled(this);
+                }
+            }
+        }
+
+        internal void Sync(bool selected)
+        {
+            _suppress = true;
+            IsSelected = selected;
+            _suppress = false;
+        }
+    }
+
     [ViewModelMixin]
     public sealed class PerkHighlightScreenMixin : BaseViewModelMixin<CharacterDeveloperVM>
     {
         private MBBindingList<PerkHighlightRoleVM> _perkHighlightRoles;
+        private MBBindingList<CaptainFlagVM> _captainFlags;
         private SelectorVM<SelectorItemVM> _captainFilter;
         private string _searchText;
         private bool _isCaptainFilterVisible;
+        private bool _isFlagMenuOpen;
+        private bool _suppressDropdown;
 
         public PerkHighlightScreenMixin(CharacterDeveloperVM vm) : base(vm)
         {
@@ -481,12 +648,19 @@ namespace PerkQOL
                 _perkHighlightRoles.Add(new PerkHighlightRoleVM(role, OnRoleToggled));
             }
 
+            _captainFlags = new MBBindingList<CaptainFlagVM>();
+            foreach (PerkHighlighter.CaptainFlagOption option in PerkHighlighter.FlagOptions)
+            {
+                _captainFlags.Add(new CaptainFlagVM(option, PerkHighlighter.IsFlagOn(option), OnFlagToggled));
+            }
+
             _captainFilter = new SelectorVM<SelectorItemVM>(
                 PerkHighlighter.CaptainFilterLabels,
-                (int)PerkHighlighter.CaptainFilter,
+                PerkHighlighter.PresetIndex(),
                 OnCaptainFilterChanged);
 
             _searchText = PerkHighlighter.SearchText;
+            PerkHighlighter.BindScreen(this);
             SyncTickboxes();
             UpdateCaptainFilterVisible();
         }
@@ -545,12 +719,46 @@ namespace PerkQOL
 
         private void OnCaptainFilterChanged(SelectorVM<SelectorItemVM> selector)
         {
-            if (selector.SelectedIndex < 0)
+            if (_suppressDropdown || selector.SelectedIndex < 0)
             {
                 return;
             }
 
-            PerkHighlighter.CaptainFilter = (PerkHighlighter.CaptainTroopClass)selector.SelectedIndex;
+            if (selector.SelectedIndex >= PerkHighlighter.CustomPresetIndex)
+            {
+                SyncDropdown();
+                return;
+            }
+
+            PerkHighlighter.ApplyPreset((PerkHighlighter.CaptainTroopClass)selector.SelectedIndex);
+        }
+
+        private void OnFlagToggled(CaptainFlagVM item) => PerkHighlighter.SetFlag(item.Option, item.IsSelected);
+
+        public void ExecuteTogglePerkQOLFlagMenu() => IsPerkQOLFlagMenuOpen = !_isFlagMenuOpen;
+
+        /// <summary>Pulls the flag ticks and the preset label back in line with the highlighter.</summary>
+        internal void SyncCaptainFlags()
+        {
+            foreach (CaptainFlagVM item in _captainFlags)
+            {
+                item.Sync(PerkHighlighter.IsFlagOn(item.Option));
+            }
+
+            SyncDropdown();
+        }
+
+        private void SyncDropdown()
+        {
+            int index = PerkHighlighter.PresetIndex();
+            if (_captainFilter.SelectedIndex == index)
+            {
+                return;
+            }
+
+            _suppressDropdown = true;
+            _captainFilter.SelectedIndex = index;
+            _suppressDropdown = false;
         }
 
         private void OnRoleToggled(PerkHighlightRoleVM item)
@@ -576,8 +784,42 @@ namespace PerkQOL
             }
         }
 
-        private void UpdateCaptainFilterVisible() =>
+        private void UpdateCaptainFilterVisible()
+        {
             IsPerkQOLCaptainFilterVisible = Settings.Current.PerkHighlight && PerkHighlighter.IsSelected(PerkHighlighter.Mode.Captain);
+            if (!IsPerkQOLCaptainFilterVisible)
+            {
+                IsPerkQOLFlagMenuOpen = false;
+            }
+        }
+
+        [DataSourceProperty]
+        public bool IsPerkQOLFlagMenuOpen
+        {
+            get => _isFlagMenuOpen;
+            set
+            {
+                if (value != _isFlagMenuOpen)
+                {
+                    _isFlagMenuOpen = value;
+                    OnPropertyChangedWithValue(value);
+                }
+            }
+        }
+
+        [DataSourceProperty]
+        public MBBindingList<CaptainFlagVM> PerkQOLCaptainFlags
+        {
+            get => _captainFlags;
+            set
+            {
+                if (value != _captainFlags)
+                {
+                    _captainFlags = value;
+                    OnPropertyChangedWithValue(value);
+                }
+            }
+        }
 
         [DataSourceProperty]
         public MBBindingList<PerkHighlightRoleVM> PerkHighlightRoles
@@ -752,8 +994,8 @@ namespace PerkQOL
     }
 
     /// <summary>
-    /// Search label plus input, then the role tickboxes. The captain troop menu sits on the Captain row and only while
-    /// that tickbox is on; its list opens down over the rows below, clear of the bottom of the screen.
+    /// Search label plus input, then the role tickboxes. The captain preset sits on the Captain row, with the party
+    /// upgrade icon opening the flag ticks. Both show only while Captain is on.
     /// </summary>
     [PrefabExtension("CharacterDeveloper", "descendant::Widget[@VisualDefinition='RightPanel']/Children")]
     public sealed class PerkHighlightControlsPatch : PrefabExtensionInsertPatch
@@ -792,29 +1034,52 @@ namespace PerkQOL
             </ListPanel>
           </ItemTemplate>
         </GridWidget>
-        <Widget IsVisible=""@IsPerkQOLCaptainFilterVisible"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""104"" SuggestedHeight=""26"" HorizontalAlignment=""Right"" VerticalAlignment=""Top"" MarginTop=""2"" MarginRight=""2"">
-          <Children>
-            <DropdownWidget Id=""CaptainTroopDropdown"" DataSource=""{PerkQOLCaptainFilter}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""104"" SuggestedHeight=""26"" ListPanel=""SelectionList"" Button=""DropdownButton"" TextWidget=""DropdownButton\SelectedText"" CurrentSelectedIndex=""@SelectedIndex"">
+        <ListPanel IsVisible=""@IsPerkQOLCaptainFilterVisible"" WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""Fixed"" SuggestedHeight=""26"" HorizontalAlignment=""Right"" VerticalAlignment=""Top"" MarginTop=""2"" MarginRight=""2"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
               <Children>
-                <ButtonWidget Id=""DropdownButton"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""104"" SuggestedHeight=""26"" Sprite=""BlankWhiteSquare_9"" Color=""#2A2118FF"" ButtonType=""Toggle"" DoNotPassEventsToChildren=""true"" UpdateChildrenStates=""true"" ClipContents=""true"">
+                <DropdownWidget Id=""CaptainTroopDropdown"" DataSource=""{PerkQOLCaptainFilter}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""100"" SuggestedHeight=""26"" ListPanel=""SelectionList"" Button=""DropdownButton"" TextWidget=""DropdownButton\SelectedText"" CurrentSelectedIndex=""@SelectedIndex"">
                   <Children>
-                    <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""1"" VerticalAlignment=""Bottom"" Sprite=""BlankWhiteSquare_9"" Color=""#C1A57BFF"" DoNotAcceptEvents=""true"" />
-                    <TextWidget Id=""SelectedText"" DataSource=""{SelectedItem}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Center"" Text=""@StringItem"" />
-                  </Children>
-                </ButtonWidget>
-                <ListPanel Id=""SelectionList"" DataSource=""{ItemList}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""104"" Sprite=""BlankWhiteSquare_9"" Color=""#1A120CFF"" IsVisible=""false"" StackLayout.LayoutMethod=""VerticalTopToBottom"" ClipContents=""true"">
-                  <ItemTemplate>
-                    <ButtonWidget Id=""DropdownItemButton"" DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""104"" SuggestedHeight=""22"" ButtonType=""Radio"" UpdateChildrenStates=""true"" Brush=""Standard.DropdownItem"">
+                    <ButtonWidget Id=""DropdownButton"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""100"" SuggestedHeight=""26"" Sprite=""BlankWhiteSquare_9"" Color=""#2A2118FF"" ButtonType=""Toggle"" DoNotPassEventsToChildren=""true"" UpdateChildrenStates=""true"" ClipContents=""true"">
                       <Children>
-                        <TextWidget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""104"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Center"" Text=""@StringItem"" />
+                        <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""1"" VerticalAlignment=""Bottom"" Sprite=""BlankWhiteSquare_9"" Color=""#C1A57BFF"" DoNotAcceptEvents=""true"" />
+                        <TextWidget Id=""SelectedText"" DataSource=""{SelectedItem}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Center"" Text=""@StringItem"" />
                       </Children>
                     </ButtonWidget>
-                  </ItemTemplate>
-                </ListPanel>
+                    <ListPanel Id=""SelectionList"" DataSource=""{ItemList}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""100"" Sprite=""BlankWhiteSquare_9"" Color=""#1A120CFF"" IsVisible=""false"" StackLayout.LayoutMethod=""VerticalTopToBottom"" ClipContents=""true"">
+                      <ItemTemplate>
+                        <ButtonWidget Id=""DropdownItemButton"" DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""100"" SuggestedHeight=""22"" ButtonType=""Radio"" UpdateChildrenStates=""true"" Brush=""Standard.DropdownItem"">
+                          <Children>
+                            <TextWidget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""100"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""14"" Brush.TextHorizontalAlignment=""Center"" Text=""@StringItem"" />
+                          </Children>
+                        </ButtonWidget>
+                      </ItemTemplate>
+                    </ListPanel>
+                  </Children>
+                </DropdownWidget>
+                <ButtonWidget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""24"" SuggestedHeight=""20"" VerticalAlignment=""Center"" MarginLeft=""4"" Command.Click=""ExecuteTogglePerkQOLFlagMenu"" DoNotPassEventsToChildren=""true"">
+                  <Children>
+                    <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""PartyScreen\upgrade_icon"" DoNotAcceptEvents=""true"" />
+                  </Children>
+                </ButtonWidget>
               </Children>
-            </DropdownWidget>
-          </Children>
-        </Widget>
+            </ListPanel>
+        <Widget IsVisible=""@IsPerkQOLFlagMenuOpen"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""248"" HorizontalAlignment=""Right"" VerticalAlignment=""Top"" MarginTop=""32"" MarginRight=""2"" Sprite=""BlankWhiteSquare_9"" Color=""#1A120CFF"">
+              <Children>
+                <GridWidget DataSource=""{PerkQOLCaptainFlags}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""CoverChildren"" MarginLeft=""4"" MarginTop=""4"" MarginBottom=""4"" DefaultCellWidth=""120"" DefaultCellHeight=""26"" ColumnCount=""2"">
+                  <ItemTemplate>
+                    <ListPanel WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
+                      <Children>
+                        <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""22"" SuggestedHeight=""22"" VerticalAlignment=""Center"" Brush=""SPOptions.Checkbox.Empty.Button"" ButtonType=""Toggle"" IsSelected=""@IsSelected"" ToggleIndicator=""ToggleIndicator"" UpdateChildrenStates=""true"">
+                          <Children>
+                            <ImageWidget Id=""ToggleIndicator"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""SPOptions.Checkbox.Full.Button"" />
+                          </Children>
+                        </ButtonWidget>
+                        <TextWidget WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""CoverChildren"" VerticalAlignment=""Center"" MarginLeft=""4"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""16"" Text=""@Name"" />
+                      </Children>
+                    </ListPanel>
+                  </ItemTemplate>
+                </GridWidget>
+              </Children>
+            </Widget>
       </Children>
     </Widget>
   </Children>
@@ -840,4 +1105,77 @@ namespace PerkQOL
   </Children>
 </Widget>";
     }
+
+    /// <summary>
+    /// The upgrade icon lives in the party-screen atlas, which the character screen does not load. Load it with the screen
+    /// and unload it again only if this screen was the one that loaded it.
+    /// </summary>
+    [HarmonyPatch]
+    internal static class PartyScreenSpriteLoadPatch
+    {
+        private static MethodBase TargetMethod() => CharacterScreenMethodHolder.Method("TaleWorlds.Core.IGameStateListener.OnActivate");
+
+    private static void Postfix() => PartyScreenSprites.Load();
 }
+
+[HarmonyPatch]
+internal static class PartyScreenSpriteUnloadPatch
+{
+        private static MethodBase TargetMethod() => CharacterScreenMethodHolder.Method("TaleWorlds.Core.IGameStateListener.OnFinalize");
+
+    private static void Postfix() => PartyScreenSprites.Unload();
+}
+
+internal static class PartyScreenSprites
+{
+    private static object _category;
+    private static bool _owned;
+
+    internal static void Load()
+    {
+        if (_category != null || !Settings.Current.PerkHighlight)
+        {
+            return;
+        }
+
+        Type manager = AccessTools.TypeByName("TaleWorlds.Engine.GauntletUI.UIResourceManager");
+        object category = AccessTools.Method(manager, "GetSpriteCategory", new[] { typeof(string) })
+            ?.Invoke(null, new object[] { "ui_partyscreen" });
+        if (category == null)
+        {
+            return;
+        }
+
+        bool already = AccessTools.Property(category.GetType(), "IsLoaded")?.GetValue(category) is bool loaded && loaded;
+        if (!already)
+        {
+            AccessTools.Method(manager, "LoadSpriteCategory", new[] { typeof(string) })
+                ?.Invoke(null, new object[] { "ui_partyscreen" });
+            _owned = true;
+        }
+
+        _category = category;
+    }
+
+    internal static void Unload()
+    {
+        if (_owned && _category != null)
+        {
+            AccessTools.Method(_category.GetType(), "Unload")?.Invoke(_category, null);
+        }
+
+        _category = null;
+        _owned = false;
+    }
+}
+
+internal static class CharacterScreenMethodHolder
+{
+    internal static MethodBase Method(string name)
+    {
+        Type screen = AccessTools.TypeByName("SandBox.GauntletUI.GauntletCharacterDeveloperScreen");
+        return screen == null ? null : AccessTools.Method(screen, name);
+    }
+}
+}
+
