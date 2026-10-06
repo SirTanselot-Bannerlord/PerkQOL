@@ -114,6 +114,58 @@ namespace PerkQOL
             return TryWrite(out error);
         }
 
+        /// <summary>Saves a copy of the current flags under a free name based on <paramref name="rawBaseName"/>.</summary>
+        internal static bool TryDuplicate(string rawBaseName, TroopUsageFlags flags, bool generic, out string createdName, out TextObject error)
+        {
+            createdName = null;
+            EnsureLoaded();
+            if (Items.Count >= MaxCount)
+            {
+                error = new TextObject("{=PQOL_CT_Full}The list holds 16 templates. Delete one first.");
+                return false;
+            }
+
+            string baseName = (rawBaseName ?? "").Trim();
+            if (baseName.Length == 0 || IsReserved(baseName))
+            {
+                baseName = new TextObject("{=PQOL_CT_Copy}Copy").ToString();
+            }
+
+            baseName = baseName.Replace("{", "").Replace("}", "").Replace('\t', ' ');
+            if (baseName.Length > MaxNameLength)
+            {
+                baseName = baseName.Substring(0, MaxNameLength).Trim();
+            }
+
+            string candidate = baseName;
+            int suffix = 2;
+            while (Find(candidate) >= 0 || IsReserved(candidate))
+            {
+                string next = baseName + " " + suffix;
+                if (next.Length > MaxNameLength)
+                {
+                    int keep = MaxNameLength - 1 - suffix.ToString().Length;
+                    next = (keep > 0 ? baseName.Substring(0, Math.Min(baseName.Length, keep)).TrimEnd() : "Copy") + " " + suffix;
+                }
+
+                candidate = next;
+                suffix++;
+                if (suffix > MaxCount + 8)
+                {
+                    error = new TextObject("{=PQOL_CT_Full}The list holds 16 templates. Delete one first.");
+                    return false;
+                }
+            }
+
+            if (!TryAdd(candidate, flags, generic, out error))
+            {
+                return false;
+            }
+
+            createdName = candidate;
+            return true;
+        }
+
         private static int Find(string name)
         {
             for (int i = 0; i < Items.Count; i++)

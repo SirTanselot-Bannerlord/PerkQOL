@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Xml;
 using Bannerlord.UIExtenderEx.Attributes;
@@ -10,6 +11,7 @@ using TaleWorlds.CampaignSystem;
 using TaleWorlds.CampaignSystem.CharacterDevelopment;
 using TaleWorlds.CampaignSystem.ViewModelCollection.CharacterDeveloper;
 using TaleWorlds.Core;
+using TaleWorlds.Core.ViewModelCollection.Information;
 using TaleWorlds.Core.ViewModelCollection.Selector;
 using TaleWorlds.Library;
 using TaleWorlds.Localization;
@@ -98,12 +100,14 @@ namespace PerkQOL
         internal readonly struct CaptainFlagOption
         {
             internal readonly TextObject Name;
+            internal readonly TextObject Hint;
             internal readonly TroopUsageFlags Flag;
             internal readonly bool Generic;
 
-            internal CaptainFlagOption(TextObject name, TroopUsageFlags flag, bool generic = false)
+            internal CaptainFlagOption(TextObject name, TextObject hint, TroopUsageFlags flag, bool generic = false)
             {
                 Name = name;
+                Hint = hint;
                 Flag = flag;
                 Generic = generic;
             }
@@ -115,18 +119,55 @@ namespace PerkQOL
         /// </summary>
         internal static readonly CaptainFlagOption[] FlagOptions =
         {
-            new CaptainFlagOption(new TextObject("{=PQOL_FF_OnFoot}On foot"), TroopUsageFlags.OnFoot),
-            new CaptainFlagOption(new TextObject("{=PQOL_FF_Mounted}Mounted"), TroopUsageFlags.Mounted),
-            new CaptainFlagOption(new TextObject("{=PQOL_FF_Melee}Melee"), TroopUsageFlags.Melee),
-            new CaptainFlagOption(new TextObject("{=PQOL_FF_Ranged}Ranged"), TroopUsageFlags.Ranged),
-            new CaptainFlagOption(new TextObject("{=PQOL_FF_OneHanded}1-Handed"), TroopUsageFlags.OneHandedUser),
-            new CaptainFlagOption(new TextObject("{=PQOL_FF_Shield}Shield"), TroopUsageFlags.ShieldUser),
-            new CaptainFlagOption(new TextObject("{=PQOL_FF_TwoHanded}2-Handed"), TroopUsageFlags.TwoHandedUser),
-            new CaptainFlagOption(new TextObject("{=PQOL_FF_Polearm}Polearm"), TroopUsageFlags.PolearmUser),
-            new CaptainFlagOption(new TextObject("{=PQOL_FF_Bow}Bow"), TroopUsageFlags.BowUser),
-            new CaptainFlagOption(new TextObject("{=PQOL_FF_Thrown}Thrown"), TroopUsageFlags.ThrownUser),
-            new CaptainFlagOption(new TextObject("{=PQOL_FF_Crossbow}Crossbow"), TroopUsageFlags.CrossbowUser),
-            new CaptainFlagOption(new TextObject("{=PQOL_FF_Generic}Generic"), TroopUsageFlags.None, true),
+            new CaptainFlagOption(
+                new TextObject("{=PQOL_FF_OnFoot}On foot"),
+                new TextObject("{=PQOL_FH_OnFoot}Captain perks for troops fighting on foot."),
+                TroopUsageFlags.OnFoot),
+            new CaptainFlagOption(
+                new TextObject("{=PQOL_FF_Mounted}Mounted"),
+                new TextObject("{=PQOL_FH_Mounted}Captain perks for mounted troops."),
+                TroopUsageFlags.Mounted),
+            new CaptainFlagOption(
+                new TextObject("{=PQOL_FF_Melee}Melee"),
+                new TextObject("{=PQOL_FH_Melee}Captain perks aimed at melee troops."),
+                TroopUsageFlags.Melee),
+            new CaptainFlagOption(
+                new TextObject("{=PQOL_FF_Ranged}Ranged"),
+                new TextObject("{=PQOL_FH_Ranged}Captain perks aimed at ranged troops."),
+                TroopUsageFlags.Ranged),
+            new CaptainFlagOption(
+                new TextObject("{=PQOL_FF_OneHanded}1-Handed"),
+                new TextObject("{=PQOL_FH_OneHanded}Captain perks for one-handed weapon users."),
+                TroopUsageFlags.OneHandedUser),
+            new CaptainFlagOption(
+                new TextObject("{=PQOL_FF_Shield}Shield"),
+                new TextObject("{=PQOL_FH_Shield}Captain perks for troops that use shields."),
+                TroopUsageFlags.ShieldUser),
+            new CaptainFlagOption(
+                new TextObject("{=PQOL_FF_TwoHanded}2-Handed"),
+                new TextObject("{=PQOL_FH_TwoHanded}Captain perks for two-handed weapon users."),
+                TroopUsageFlags.TwoHandedUser),
+            new CaptainFlagOption(
+                new TextObject("{=PQOL_FF_Polearm}Polearm"),
+                new TextObject("{=PQOL_FH_Polearm}Captain perks for polearm users."),
+                TroopUsageFlags.PolearmUser),
+            new CaptainFlagOption(
+                new TextObject("{=PQOL_FF_Bow}Bow"),
+                new TextObject("{=PQOL_FH_Bow}Captain perks for bow users."),
+                TroopUsageFlags.BowUser),
+            new CaptainFlagOption(
+                new TextObject("{=PQOL_FF_Thrown}Thrown"),
+                new TextObject("{=PQOL_FH_Thrown}Captain perks for thrown-weapon users."),
+                TroopUsageFlags.ThrownUser),
+            new CaptainFlagOption(
+                new TextObject("{=PQOL_FF_Crossbow}Crossbow"),
+                new TextObject("{=PQOL_FH_Crossbow}Captain perks for crossbow users."),
+                TroopUsageFlags.CrossbowUser),
+            new CaptainFlagOption(
+                new TextObject("{=PQOL_FF_Generic}Generic"),
+                new TextObject("{=PQOL_FH_Generic}Captain perks with no troop flag (untagged)."),
+                TroopUsageFlags.None,
+                true),
         };
 
         private static readonly HashSet<Mode> Selected = new HashSet<Mode>();
@@ -702,12 +743,17 @@ namespace PerkQOL
             _onToggled = onToggled;
             _isSelected = selected;
             Name = option.Name.ToString();
+            string hint = option.Hint.ToString();
+            Hint = new BasicTooltipViewModel(() => hint);
         }
 
         internal PerkHighlighter.CaptainFlagOption Option { get; }
 
         [DataSourceProperty]
         public string Name { get; }
+
+        [DataSourceProperty]
+        public BasicTooltipViewModel Hint { get; }
 
         [DataSourceProperty]
         public bool IsSelected
@@ -737,11 +783,49 @@ namespace PerkQOL
         }
     }
 
+    /// <summary>One row in the captain flag window's profile list (preset, Custom, or a saved template).</summary>
+    public sealed class CaptainProfileVM : ViewModel
+    {
+        private readonly Action<CaptainProfileVM> _onSelect;
+        private bool _isSelected;
+
+        internal CaptainProfileVM(string name, int filterIndex, Action<CaptainProfileVM> onSelect, bool selected)
+        {
+            Name = name;
+            FilterIndex = filterIndex;
+            _onSelect = onSelect;
+            _isSelected = selected;
+        }
+
+        /// <summary>Same index space as the troop dropdown: presets 0–4, Custom 5, templates from 6.</summary>
+        internal int FilterIndex { get; }
+
+        [DataSourceProperty]
+        public string Name { get; }
+
+        [DataSourceProperty]
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (value != _isSelected)
+                {
+                    _isSelected = value;
+                    OnPropertyChangedWithValue(value);
+                }
+            }
+        }
+
+        public void ExecuteSelect() => _onSelect(this);
+    }
+
     [ViewModelMixin]
     public sealed class PerkHighlightScreenMixin : BaseViewModelMixin<CharacterDeveloperVM>
     {
         private MBBindingList<PerkHighlightRoleVM> _perkHighlightRoles;
         private MBBindingList<CaptainFlagVM> _captainFlags;
+        private MBBindingList<CaptainProfileVM> _captainProfiles;
         private SelectorVM<SelectorItemVM> _captainFilter;
         private string _searchText;
         private string _templateName = "";
@@ -770,6 +854,9 @@ namespace PerkQOL
             {
                 _captainFlags.Add(new CaptainFlagVM(option, PerkHighlighter.IsFlagOn(option), OnFlagToggled));
             }
+
+            _captainProfiles = new MBBindingList<CaptainProfileVM>();
+            RebuildProfiles();
 
             _suppressDropdown = true;
             _captainFilter = new SelectorVM<SelectorItemVM>(
@@ -897,6 +984,38 @@ namespace PerkQOL
             ReloadTemplateDropdown();
         }
 
+        [DataSourceMethod]
+        public void ExecuteDuplicatePerkQOLTemplate()
+        {
+            string baseName = PerkQOLTemplateName;
+            if (string.IsNullOrWhiteSpace(baseName))
+            {
+                int index = PerkHighlighter.PresetIndex();
+                if (index < PerkHighlighter.CustomPresetIndex)
+                {
+                    baseName = PerkHighlighter.PresetNames.ElementAtOrDefault(index)?.ToString() ?? "Copy";
+                }
+                else
+                {
+                    baseName = new TextObject("{=PQOL_CT_Copy}Copy").ToString();
+                }
+            }
+
+            if (!CaptainTemplates.TryDuplicate(
+                    baseName,
+                    PerkHighlighter.CurrentFlags,
+                    PerkHighlighter.IncludeUntagged,
+                    out string created,
+                    out TextObject error))
+            {
+                ShowTemplateMessage(error);
+                return;
+            }
+
+            PerkQOLTemplateName = created;
+            ReloadTemplateDropdown();
+        }
+
         private static void ShowTemplateMessage(TextObject message) =>
             InformationManager.DisplayMessage(new InformationMessage(message.ToString(), Colors.Red));
 
@@ -906,9 +1025,80 @@ namespace PerkQOL
             _captainFilter.Refresh(PerkHighlighter.CaptainFilterLabels(), PerkHighlighter.PresetIndex(), OnCaptainFilterChanged);
             _suppressDropdown = false;
             SyncTemplateName();
+            RebuildProfiles();
         }
 
         private void OnFlagToggled(CaptainFlagVM item) => PerkHighlighter.SetFlag(item.Option, item.IsSelected);
+
+        private void RebuildProfiles()
+        {
+            _captainProfiles.Clear();
+            int selected = PerkHighlighter.PresetIndex();
+            for (int i = 0; i < PerkHighlighter.CustomPresetIndex; i++)
+            {
+                _captainProfiles.Add(new CaptainProfileVM(
+                    PerkHighlighter.PresetNames.ElementAt(i).ToString(),
+                    i,
+                    OnProfileSelected,
+                    i == selected));
+            }
+
+            _captainProfiles.Add(new CaptainProfileVM(
+                new TextObject("{=PQOL_CT_Custom}Custom").ToString(),
+                PerkHighlighter.CustomPresetIndex,
+                OnProfileSelected,
+                selected == PerkHighlighter.CustomPresetIndex));
+
+            IReadOnlyList<CaptainTemplate> templates = CaptainTemplates.All;
+            for (int i = 0; i < templates.Count; i++)
+            {
+                int filterIndex = PerkHighlighter.TemplateIndexBase + i;
+                _captainProfiles.Add(new CaptainProfileVM(
+                    templates[i].Name,
+                    filterIndex,
+                    OnProfileSelected,
+                    filterIndex == selected));
+            }
+
+            OnPropertyChanged(nameof(PerkQOLCaptainProfiles));
+        }
+
+        private void OnProfileSelected(CaptainProfileVM profile)
+        {
+            if (profile.FilterIndex == PerkHighlighter.CustomPresetIndex)
+            {
+                // Custom is the working set; selection follows flag edits, not a click.
+                SyncProfileSelection();
+                return;
+            }
+
+            if (profile.FilterIndex < PerkHighlighter.CustomPresetIndex)
+            {
+                PerkHighlighter.ApplyPreset((PerkHighlighter.CaptainTroopClass)profile.FilterIndex);
+            }
+            else if (!PerkHighlighter.ApplyTemplate(profile.FilterIndex - PerkHighlighter.TemplateIndexBase))
+            {
+                RebuildProfiles();
+                return;
+            }
+
+            SyncDropdown();
+            SyncTemplateName();
+            SyncProfileSelection();
+            foreach (CaptainFlagVM item in _captainFlags)
+            {
+                item.Sync(PerkHighlighter.IsFlagOn(item.Option));
+            }
+        }
+
+        private void SyncProfileSelection()
+        {
+            int selected = PerkHighlighter.PresetIndex();
+            foreach (CaptainProfileVM profile in _captainProfiles)
+            {
+                profile.IsSelected = profile.FilterIndex == selected;
+            }
+        }
 
         [DataSourceMethod]
         public void ExecuteTogglePerkQOLFlagMenu() => IsPerkQOLFlagMenuOpen = !_isFlagMenuOpen;
@@ -926,6 +1116,14 @@ namespace PerkQOL
 
             SyncDropdown();
             SyncTemplateName();
+            if (_captainProfiles.Count != PerkHighlighter.CustomPresetIndex + 1 + CaptainTemplates.All.Count)
+            {
+                RebuildProfiles();
+            }
+            else
+            {
+                SyncProfileSelection();
+            }
         }
 
         /// <summary>
@@ -1015,7 +1213,13 @@ namespace PerkQOL
         public string PerkQOLTemplateDeleteLabel => new TextObject("{=PQOL_CT_Delete}Delete").ToString();
 
         [DataSourceProperty]
+        public string PerkQOLTemplateDuplicateLabel => new TextObject("{=PQOL_CT_Duplicate}Duplicate").ToString();
+
+        [DataSourceProperty]
         public string PerkQOLFlagWindowTitle => new TextObject("{=PQOL_CT_Title}Captain flags").ToString();
+
+        [DataSourceProperty]
+        public string PerkQOLFlagProfilesLabel => new TextObject("{=PQOL_CT_Profiles}Profiles").ToString();
 
         [DataSourceProperty]
         public string PerkQOLFlagWindowCloseLabel => new TextObject("{=PQOL_CT_Close}Close").ToString();
@@ -1030,6 +1234,10 @@ namespace PerkQOL
                 {
                     _isFlagMenuOpen = value;
                     OnPropertyChangedWithValue(value);
+                    if (value)
+                    {
+                        RebuildProfiles();
+                    }
                 }
             }
         }
@@ -1043,6 +1251,20 @@ namespace PerkQOL
                 if (value != _captainFlags)
                 {
                     _captainFlags = value;
+                    OnPropertyChangedWithValue(value);
+                }
+            }
+        }
+
+        [DataSourceProperty]
+        public MBBindingList<CaptainProfileVM> PerkQOLCaptainProfiles
+        {
+            get => _captainProfiles;
+            set
+            {
+                if (value != _captainProfiles)
+                {
+                    _captainProfiles = value;
                     OnPropertyChangedWithValue(value);
                 }
             }
@@ -1328,50 +1550,93 @@ namespace PerkQOL
         <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""BlankWhiteSquare_9"" Color=""#000000FF"" AlphaFactor=""0.6"" DoNotAcceptEvents=""true"" />
       </Children>
     </ButtonWidget>
-    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""640"" SuggestedHeight=""500"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"">
+    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""820"" SuggestedHeight=""420"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"">
       <Children>
         <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""StdAssets\Popup\canvas"" />
-        <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""40"" MarginTop=""22"" Brush=""SPOptions.GameKeysGroup.Title.Text"" Brush.FontSize=""32"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLFlagWindowTitle"" />
-        <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""20"" MarginTop=""68"" MarginLeft=""48"" MarginRight=""48"" Sprite=""StdAssets\Popup\divider"" />
-        <GridWidget DataSource=""{PerkQOLCaptainFlags}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""CoverChildren"" MarginLeft=""40"" MarginRight=""40"" MarginTop=""104"" DefaultCellWidth=""280"" DefaultCellHeight=""36"" ColumnCount=""2"">
-          <ItemTemplate>
-            <ListPanel WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
+        <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""36"" MarginTop=""18"" Brush=""SPOptions.GameKeysGroup.Title.Text"" Brush.FontSize=""30"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLFlagWindowTitle"" />
+        <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""18"" MarginTop=""58"" MarginLeft=""36"" MarginRight=""36"" Sprite=""StdAssets\Popup\divider"" />
+
+        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""210"" SuggestedHeight=""250"" MarginLeft=""28"" MarginTop=""86"">
+          <Children>
+            <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""24"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""18"" Text=""@PerkQOLFlagProfilesLabel"" />
+            <ScrollablePanel WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""220"" MarginTop=""28"" AutoHideScrollBars=""true"" ClipRect=""ProfileClip"" InnerPanel=""ProfileClip\ProfileList"" VerticalScrollbar=""ProfileScroll"">
               <Children>
-                <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""26"" SuggestedHeight=""26"" VerticalAlignment=""Center"" Brush=""SPOptions.Checkbox.Empty.Button"" ButtonType=""Toggle"" IsSelected=""@IsSelected"" ToggleIndicator=""ToggleIndicator"" UpdateChildrenStates=""true"">
+                <Widget Id=""ProfileClip"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" ClipContents=""true"">
                   <Children>
-                    <ImageWidget Id=""ToggleIndicator"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""SPOptions.Checkbox.Full.Button"" />
+                    <ListPanel Id=""ProfileList"" DataSource=""{PerkQOLCaptainProfiles}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""CoverChildren"" StackLayout.LayoutMethod=""VerticalTopToBottom"">
+                      <ItemTemplate>
+                        <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""28"" MarginBottom=""2"" ButtonType=""Radio"" IsSelected=""@IsSelected"" UpdateChildrenStates=""true"" Command.Click=""ExecuteSelect"" Brush=""Standard.DropdownItem.SoundBrush"">
+                          <Children>
+                            <ImageWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""2"" MarginRight=""2"" Brush=""Standard.DropdownItem"" />
+                            <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""10"" MarginRight=""6"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""17"" Brush.TextHorizontalAlignment=""Left"" Text=""@Name"" />
+                          </Children>
+                        </ButtonWidget>
+                      </ItemTemplate>
+                    </ListPanel>
                   </Children>
-                </ButtonWidget>
-                <TextWidget WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""CoverChildren"" VerticalAlignment=""Center"" MarginLeft=""8"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""18"" Text=""@Name"" />
+                </Widget>
+                <ScrollbarWidget Id=""ProfileScroll"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""8"" HorizontalAlignment=""Right"" MarginRight=""2"" AlignmentAxis=""Vertical"" Handle=""ProfileScrollHandle"" MaxValue=""100"" MinValue=""0"">
+                  <Children>
+                    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""4"" HorizontalAlignment=""Center"" Sprite=""BlankWhiteSquare_9"" AlphaFactor=""0.2"" Color=""#5A4033FF"" />
+                    <ImageWidget Id=""ProfileScrollHandle"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""8"" SuggestedHeight=""10"" HorizontalAlignment=""Center"" Sprite=""BlankWhiteSquare_9"" Color=""#C1A57BFF"" />
+                  </Children>
+                </ScrollbarWidget>
               </Children>
-            </ListPanel>
+            </ScrollablePanel>
+          </Children>
+        </Widget>
+
+        <GridWidget DataSource=""{PerkQOLCaptainFlags}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""520"" MarginLeft=""260"" MarginTop=""86"" DefaultCellWidth=""170"" DefaultCellHeight=""28"" ColumnCount=""3"">
+          <ItemTemplate>
+            <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"">
+              <Children>
+                <ListPanel WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
+                  <Children>
+                    <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""24"" SuggestedHeight=""24"" VerticalAlignment=""Center"" Brush=""SPOptions.Checkbox.Empty.Button"" ButtonType=""Toggle"" IsSelected=""@IsSelected"" ToggleIndicator=""ToggleIndicator"" UpdateChildrenStates=""true"">
+                      <Children>
+                        <ImageWidget Id=""ToggleIndicator"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""SPOptions.Checkbox.Full.Button"" />
+                      </Children>
+                    </ButtonWidget>
+                    <TextWidget WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""CoverChildren"" VerticalAlignment=""Center"" MarginLeft=""6"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""17"" Text=""@Name"" />
+                  </Children>
+                </ListPanel>
+                <HintWidget DataSource=""{Hint}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Command.HoverBegin=""ExecuteBeginHint"" Command.HoverEnd=""ExecuteEndHint"" IsEnabled=""false"" />
+              </Children>
+            </Widget>
           </ItemTemplate>
         </GridWidget>
-        <BrushWidget UpdateChildrenStates=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""36"" MarginTop=""340"" MarginLeft=""48"" MarginRight=""48"" Brush=""SaveLoad.Search.Button"">
+
+        <BrushWidget UpdateChildrenStates=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""520"" SuggestedHeight=""34"" MarginLeft=""260"" MarginTop=""220"" Brush=""SaveLoad.Search.Button"">
           <Children>
             <EditableTextWidget UpdateChildrenStates=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""12"" MarginRight=""12"" MarginTop=""4"" MarginBottom=""4"" Brush=""SaveLoad.Search.InputText"" Brush.FontSize=""18"" Text=""@PerkQOLTemplateName"" />
           </Children>
         </BrushWidget>
-        <ListPanel WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""Fixed"" SuggestedHeight=""46"" HorizontalAlignment=""Right"" VerticalAlignment=""Bottom"" MarginRight=""36"" MarginBottom=""28"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
+
+        <ListPanel WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""Fixed"" SuggestedHeight=""44"" HorizontalAlignment=""Right"" VerticalAlignment=""Bottom"" MarginRight=""28"" MarginBottom=""24"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
           <Children>
-            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""110"" SuggestedHeight=""42"" MarginLeft=""6"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteSavePerkQOLTemplate"" UpdateChildrenStates=""true"">
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""100"" SuggestedHeight=""40"" MarginLeft=""4"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteSavePerkQOLTemplate"" UpdateChildrenStates=""true"">
               <Children>
-                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""8"" MarginRight=""8"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""20"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateSaveLabel"" />
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""18"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateSaveLabel"" />
               </Children>
             </ButtonWidget>
-            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""120"" SuggestedHeight=""42"" MarginLeft=""6"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteUpdatePerkQOLTemplate"" UpdateChildrenStates=""true"">
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""110"" SuggestedHeight=""40"" MarginLeft=""4"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteDuplicatePerkQOLTemplate"" UpdateChildrenStates=""true"">
               <Children>
-                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""8"" MarginRight=""8"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""20"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateUpdateLabel"" />
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""18"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateDuplicateLabel"" />
               </Children>
             </ButtonWidget>
-            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""120"" SuggestedHeight=""42"" MarginLeft=""6"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteDeletePerkQOLTemplate"" UpdateChildrenStates=""true"">
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""100"" SuggestedHeight=""40"" MarginLeft=""4"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteUpdatePerkQOLTemplate"" UpdateChildrenStates=""true"">
               <Children>
-                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""8"" MarginRight=""8"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""20"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateDeleteLabel"" />
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""18"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateUpdateLabel"" />
               </Children>
             </ButtonWidget>
-            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""110"" SuggestedHeight=""42"" MarginLeft=""6"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteClosePerkQOLFlagMenu"" UpdateChildrenStates=""true"">
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""100"" SuggestedHeight=""40"" MarginLeft=""4"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteDeletePerkQOLTemplate"" UpdateChildrenStates=""true"">
               <Children>
-                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""8"" MarginRight=""8"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""20"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLFlagWindowCloseLabel"" />
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""18"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateDeleteLabel"" />
+              </Children>
+            </ButtonWidget>
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""100"" SuggestedHeight=""40"" MarginLeft=""4"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteClosePerkQOLFlagMenu"" UpdateChildrenStates=""true"">
+              <Children>
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""18"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLFlagWindowCloseLabel"" />
               </Children>
             </ButtonWidget>
           </Children>
