@@ -188,19 +188,19 @@ namespace PerkQOL
             {
                 new CaptainFlagOption(
                     new TextObject("{=PQOL_FF_OnFoot}On foot"),
-                    new TextObject("{=PQOL_FH_OnFoot}Captain perks for troops fighting on foot."),
+                    new TextObject("{=PQOL_FH_OnFoot}Unticked: hide captain perks for foot troops."),
                     TroopUsageFlags.OnFoot),
                 new CaptainFlagOption(
                     new TextObject("{=PQOL_FF_Mounted}Mounted"),
-                    new TextObject("{=PQOL_FH_Mounted}Captain perks for mounted troops."),
+                    new TextObject("{=PQOL_FH_Mounted}Unticked: hide captain perks for mounted troops."),
                     TroopUsageFlags.Mounted),
                 new CaptainFlagOption(
                     new TextObject("{=PQOL_FF_Melee}Melee"),
-                    new TextObject("{=PQOL_FH_Melee}Captain perks aimed at melee troops."),
+                    new TextObject("{=PQOL_FH_Melee}Unticked: hide captain perks for melee troops."),
                     TroopUsageFlags.Melee),
                 new CaptainFlagOption(
                     new TextObject("{=PQOL_FF_Ranged}Ranged"),
-                    new TextObject("{=PQOL_FH_Ranged}Captain perks aimed at ranged troops."),
+                    new TextObject("{=PQOL_FH_Ranged}Unticked: hide captain perks for ranged troops."),
                     TroopUsageFlags.Ranged),
             };
 
@@ -208,45 +208,45 @@ namespace PerkQOL
             {
                 options.Add(new CaptainFlagOption(
                     new TextObject("{=PQOL_FF_Land}Land"),
-                    new TextObject("{=PQOL_FH_Land}Captain perks that apply in land battles (PerkFixes)."),
+                    new TextObject("{=PQOL_FH_Land}Unticked: hide captain perks that only apply in land battles."),
                     LandBit));
                 options.Add(new CaptainFlagOption(
                     new TextObject("{=PQOL_FF_Naval}Naval"),
-                    new TextObject("{=PQOL_FH_Naval}Captain perks that apply in naval battles (PerkFixes)."),
+                    new TextObject("{=PQOL_FH_Naval}Unticked: hide captain perks that only apply in naval battles."),
                     NavalBit));
             }
 
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_OneHanded}1-Handed"),
-                new TextObject("{=PQOL_FH_OneHanded}Captain perks for one-handed weapon users."),
+                new TextObject("{=PQOL_FH_OneHanded}Unticked: hide captain perks for one-handed troops."),
                 TroopUsageFlags.OneHandedUser));
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Bow}Bow"),
-                new TextObject("{=PQOL_FH_Bow}Captain perks for bow users."),
+                new TextObject("{=PQOL_FH_Bow}Unticked: hide captain perks for bow troops."),
                 TroopUsageFlags.BowUser));
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_TwoHanded}2-Handed"),
-                new TextObject("{=PQOL_FH_TwoHanded}Captain perks for two-handed weapon users."),
+                new TextObject("{=PQOL_FH_TwoHanded}Unticked: hide captain perks for two-handed troops."),
                 TroopUsageFlags.TwoHandedUser));
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Thrown}Thrown"),
-                new TextObject("{=PQOL_FH_Thrown}Captain perks for thrown-weapon users."),
+                new TextObject("{=PQOL_FH_Thrown}Unticked: hide captain perks for thrown-weapon troops."),
                 TroopUsageFlags.ThrownUser));
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Polearm}Polearm"),
-                new TextObject("{=PQOL_FH_Polearm}Captain perks for polearm users."),
+                new TextObject("{=PQOL_FH_Polearm}Unticked: hide captain perks for polearm troops."),
                 TroopUsageFlags.PolearmUser));
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Crossbow}Crossbow"),
-                new TextObject("{=PQOL_FH_Crossbow}Captain perks for crossbow users."),
+                new TextObject("{=PQOL_FH_Crossbow}Unticked: hide captain perks for crossbow troops."),
                 TroopUsageFlags.CrossbowUser));
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Shield}Shield"),
-                new TextObject("{=PQOL_FH_Shield}Captain perks for troops that use shields."),
+                new TextObject("{=PQOL_FH_Shield}Unticked: hide captain perks for shield troops."),
                 TroopUsageFlags.ShieldUser));
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Generic}Generic"),
-                new TextObject("{=PQOL_FH_Generic}Captain perks with no troop flag (untagged)."),
+                new TextObject("{=PQOL_FH_Generic}Unticked: hide untagged captain perks (no troop type; apply broadly)."),
                 TroopUsageFlags.None,
                 true));
             return options.ToArray();
@@ -679,68 +679,6 @@ namespace PerkQOL
         internal static bool SkillHasMatch(SkillObject skill) =>
             TryGetSkillMatchStats(skill, out _, out _);
 
-        /// <summary>Temporary skill-name styles: {white, cyan} × {no line, full line, text-width line}.</summary>
-        internal enum SkillMatchVisual
-        {
-            WhiteNone = 0,
-            WhiteFullLine = 1,
-            WhiteTextLine = 2,
-            CyanNone = 3,
-            CyanFullLine = 4,
-            CyanTextLine = 5,
-        }
-
-        private const int SkillMatchVisualCount = 6;
-
-        private static readonly HashSet<string> WhiteNoneSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "OneHanded", "Riding", "Mariner",
-        };
-
-        private static readonly HashSet<string> WhiteFullLineSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Bow", "Scouting", "Steward",
-        };
-
-        private static readonly HashSet<string> WhiteTextLineSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Charm", "Throwing",
-        };
-
-        private static readonly HashSet<string> CyanNoneSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "TwoHanded", "Athletics", "Medicine", "Boatswain",
-        };
-
-        private static readonly HashSet<string> CyanFullLineSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Crossbow", "Tactics", "Leadership",
-        };
-
-        private static readonly HashSet<string> CyanTextLineSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Polearm", "Crafting", "Trade", "Shipmaster", "Roguery", "Engineering",
-        };
-
-        internal static SkillMatchVisual MatchVisualOf(SkillObject skill)
-        {
-            string id = skill?.StringId ?? "";
-            if (WhiteNoneSkillIds.Contains(id)) return SkillMatchVisual.WhiteNone;
-            if (WhiteFullLineSkillIds.Contains(id)) return SkillMatchVisual.WhiteFullLine;
-            if (WhiteTextLineSkillIds.Contains(id)) return SkillMatchVisual.WhiteTextLine;
-            if (CyanNoneSkillIds.Contains(id)) return SkillMatchVisual.CyanNone;
-            if (CyanFullLineSkillIds.Contains(id)) return SkillMatchVisual.CyanFullLine;
-            if (CyanTextLineSkillIds.Contains(id)) return SkillMatchVisual.CyanTextLine;
-
-            int hash = 0;
-            foreach (char c in id)
-            {
-                hash = (hash * 33) ^ c;
-            }
-
-            return (SkillMatchVisual)(Math.Abs(hash) % SkillMatchVisualCount);
-        }
-
         /// <summary>
         /// Matching perks for a skill under the current role/search filter: count and highest required skill level.
         /// </summary>
@@ -803,10 +741,14 @@ namespace PerkQOL
                 default: return TroopUsageFlags.Undefined;
             }
 
-            // PerkFixes scores land formations with the Land bit ORed in; keep the troop presets aligned.
+            // PerkFixes ORs Land into formation masks; infantry/archer also fight at sea, so include Naval.
             if (PerkFixesLoaded)
             {
                 flags |= LandBit;
+                if (troopClass == CaptainTroopClass.Infantry || troopClass == CaptainTroopClass.Ranged)
+                {
+                    flags |= NavalBit;
+                }
             }
 
             return flags;
@@ -1613,16 +1555,13 @@ namespace PerkQOL
     [ViewModelMixin("RefreshValues")]
     public sealed class PerkHighlightSkillMixin : BaseViewModelMixin<SkillVM>
     {
-        // Color.FromUint is AARRGGBB. Default brush is cream #FDF1DF.
+        // Color.FromUint is AARRGGBB. Default brush is cream #FDF1DF; matches use cyan.
         private static readonly Color NormalColor = Color.FromUint(0xFFFDF1DFu);
-        private static readonly Color WhiteColor = Color.FromUint(0xFFFFFFFFu);
-        private static readonly Color CyanColor = Color.FromUint(0xFF5EEAD4u);
+        private static readonly Color MatchColor = Color.FromUint(0xFF5EEAD4u);
 
         private readonly SkillObject _skill;
         private Color _nameColor = NormalColor;
         private string _nameText = "";
-        private bool _fullUnderline;
-        private bool _textUnderline;
 
         public PerkHighlightSkillMixin(SkillVM vm) : base(vm)
         {
@@ -1645,43 +1584,15 @@ namespace PerkQOL
                 baseName = _skill?.Name?.ToString() ?? "";
             }
 
-            if (!PerkHighlighter.TryGetSkillMatchStats(_skill, out int matchCount, out int maxRequirement))
+            if (PerkHighlighter.TryGetSkillMatchStats(_skill, out int matchCount, out int maxRequirement))
+            {
+                PerkQOLSkillNameText = baseName + ", " + matchCount + ", " + maxRequirement;
+                PerkQOLSkillNameColor = MatchColor;
+            }
+            else
             {
                 PerkQOLSkillNameText = baseName;
                 PerkQOLSkillNameColor = NormalColor;
-                IsPerkQOLSkillFullUnderline = false;
-                IsPerkQOLSkillTextUnderline = false;
-                return;
-            }
-
-            PerkQOLSkillNameText = baseName + ", " + matchCount + ", " + maxRequirement;
-            IsPerkQOLSkillFullUnderline = false;
-            IsPerkQOLSkillTextUnderline = false;
-
-            switch (PerkHighlighter.MatchVisualOf(_skill))
-            {
-                case PerkHighlighter.SkillMatchVisual.WhiteNone:
-                    PerkQOLSkillNameColor = WhiteColor;
-                    break;
-                case PerkHighlighter.SkillMatchVisual.WhiteFullLine:
-                    PerkQOLSkillNameColor = WhiteColor;
-                    IsPerkQOLSkillFullUnderline = true;
-                    break;
-                case PerkHighlighter.SkillMatchVisual.WhiteTextLine:
-                    PerkQOLSkillNameColor = WhiteColor;
-                    IsPerkQOLSkillTextUnderline = true;
-                    break;
-                case PerkHighlighter.SkillMatchVisual.CyanNone:
-                    PerkQOLSkillNameColor = CyanColor;
-                    break;
-                case PerkHighlighter.SkillMatchVisual.CyanFullLine:
-                    PerkQOLSkillNameColor = CyanColor;
-                    IsPerkQOLSkillFullUnderline = true;
-                    break;
-                default:
-                    PerkQOLSkillNameColor = CyanColor;
-                    IsPerkQOLSkillTextUnderline = true;
-                    break;
             }
         }
 
@@ -1714,40 +1625,6 @@ namespace PerkQOL
 
                 _nameText = value ?? "";
                 OnPropertyChangedWithValue(_nameText);
-            }
-        }
-
-        /// <summary>Underline across the name area with equal left/right inset (not text-measured).</summary>
-        [DataSourceProperty]
-        public bool IsPerkQOLSkillFullUnderline
-        {
-            get => _fullUnderline;
-            set
-            {
-                if (value == _fullUnderline)
-                {
-                    return;
-                }
-
-                _fullUnderline = value;
-                OnPropertyChangedWithValue(value);
-            }
-        }
-
-        /// <summary>Underline sized to the text block only.</summary>
-        [DataSourceProperty]
-        public bool IsPerkQOLSkillTextUnderline
-        {
-            get => _textUnderline;
-            set
-            {
-                if (value == _textUnderline)
-                {
-                    return;
-                }
-
-                _textUnderline = value;
-                OnPropertyChangedWithValue(value);
             }
         }
     }
@@ -1885,7 +1762,7 @@ namespace PerkQOL
         <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""BlankWhiteSquare_9"" Color=""#000000FF"" AlphaFactor=""0.6"" DoNotAcceptEvents=""true"" />
       </Children>
     </ButtonWidget>
-    <ButtonWidget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""700"" SuggestedHeight=""540"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"" DoNotPassEventsToChildren=""false"" UpdateChildrenStates=""true"">
+    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""700"" SuggestedHeight=""540"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"">
       <Children>
         <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""StdAssets\Popup\canvas"" DoNotAcceptEvents=""true"" />
         <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""frame_9"" ExtendLeft=""18"" ExtendRight=""18"" ExtendTop=""18"" ExtendBottom=""18"" DoNotAcceptEvents=""true"" />
@@ -1924,7 +1801,7 @@ namespace PerkQOL
 
         <GridWidget DataSource=""{PerkQOLCaptainFlags}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""360"" MarginLeft=""250"" MarginTop=""86"" DefaultCellWidth=""180"" DefaultCellHeight=""32"" ColumnCount=""2"">
           <ItemTemplate>
-            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" ButtonType=""Toggle"" IsSelected=""@IsSelected"" UpdateChildrenStates=""true"" Brush=""Standard.DropdownItem.SoundBrush"">
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" ButtonType=""Toggle"" IsSelected=""@IsSelected"" UpdateChildrenStates=""true"">
               <Children>
                 <ListPanel WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" StackLayout.LayoutMethod=""HorizontalLeftToRight"" DoNotAcceptEvents=""true"">
                   <Children>
@@ -1933,7 +1810,7 @@ namespace PerkQOL
                         <ImageWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""SPOptions.Checkbox.Full.Button"" IsVisible=""@IsSelected"" DoNotAcceptEvents=""true"" />
                       </Children>
                     </BrushWidget>
-                    <TextWidget WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""CoverChildren"" VerticalAlignment=""Center"" MarginLeft=""6"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""20"" Text=""@Name"" DoNotAcceptEvents=""true"" />
+                    <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" VerticalAlignment=""Center"" MarginLeft=""6"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""20"" Brush.TextHorizontalAlignment=""Left"" Text=""@Name"" DoNotAcceptEvents=""true"" />
                   </Children>
                 </ListPanel>
                 <HintWidget DataSource=""{Hint}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Command.HoverBegin=""ExecuteBeginHint"" Command.HoverEnd=""ExecuteEndHint"" DoNotAcceptEvents=""true"" />
@@ -1978,12 +1855,15 @@ namespace PerkQOL
           </Children>
         </ListPanel>
       </Children>
-    </ButtonWidget>
+    </Widget>
   </Children>
 </Widget>";
     }
 
-    /// <summary>Replaces the skill name; match color/underline style varies for comparison.</summary>
+    /// <summary>
+    /// Replaces the skill name so matches use cyan text (and append match count / max level).
+    /// CoverChildren avoids Gauntlet Text.ScaleToFitTextInLayout, which squeezes long strings under StretchToParent.
+    /// </summary>
     [PrefabExtension("SkillGridItem", "descendant::TextWidget[@Text='@NameText']")]
     public sealed class PerkHighlightSkillNamePatch : PrefabExtensionInsertPatch
     {
@@ -1993,31 +1873,10 @@ namespace PerkQOL
 
         public PerkHighlightSkillNamePatch()
         {
-            // Text-width underline: CoverChildren stack sized by the text. Full underline: equal left/right inset.
             _document.LoadXml(
-                "<Widget WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"Fixed\" SuggestedHeight=\"!NameText.Height\" " +
-                "VerticalAlignment=\"Top\" MarginLeft=\"10\" MarginRight=\"10\" DoNotAcceptEvents=\"true\">" +
-                "<Children>" +
-                "<ListPanel IsVisible=\"@IsPerkQOLSkillTextUnderline\" WidthSizePolicy=\"CoverChildren\" HeightSizePolicy=\"StretchToParent\" " +
-                "HorizontalAlignment=\"Left\" StackLayout.LayoutMethod=\"VerticalTopToBottom\" DoNotAcceptEvents=\"true\">" +
-                "<Children>" +
-                "<TextWidget WidthSizePolicy=\"CoverChildren\" HeightSizePolicy=\"CoverChildren\" Brush=\"CharacterDeveloper.GridSkillName.Text\" " +
-                "Brush.FontColor=\"@PerkQOLSkillNameColor\" IsEnabled=\"@CanLearnSkill\" Text=\"@PerkQOLSkillNameText\" DoNotAcceptEvents=\"true\" />" +
-                "<Widget WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"Fixed\" SuggestedHeight=\"2\" MarginTop=\"1\" " +
-                "Sprite=\"BlankWhiteSquare_9\" Color=\"@PerkQOLSkillNameColor\" DoNotAcceptEvents=\"true\" />" +
-                "</Children>" +
-                "</ListPanel>" +
-                "<Widget IsHidden=\"@IsPerkQOLSkillTextUnderline\" WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"StretchToParent\" DoNotAcceptEvents=\"true\">" +
-                "<Children>" +
-                "<TextWidget WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"StretchToParent\" Brush=\"CharacterDeveloper.GridSkillName.Text\" " +
-                "Brush.FontColor=\"@PerkQOLSkillNameColor\" IsEnabled=\"@CanLearnSkill\" Text=\"@PerkQOLSkillNameText\" DoNotAcceptEvents=\"true\" />" +
-                "<Widget IsVisible=\"@IsPerkQOLSkillFullUnderline\" WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"Fixed\" " +
-                "SuggestedHeight=\"2\" VerticalAlignment=\"Bottom\" MarginBottom=\"2\" Sprite=\"BlankWhiteSquare_9\" " +
-                "Color=\"@PerkQOLSkillNameColor\" DoNotAcceptEvents=\"true\" />" +
-                "</Children>" +
-                "</Widget>" +
-                "</Children>" +
-                "</Widget>");
+                "<TextWidget WidthSizePolicy=\"CoverChildren\" HeightSizePolicy=\"Fixed\" SuggestedHeight=\"!NameText.Height\" " +
+                "VerticalAlignment=\"Top\" MarginLeft=\"10\" ClipContents=\"false\" Brush=\"CharacterDeveloper.GridSkillName.Text\" " +
+                "Brush.FontColor=\"@PerkQOLSkillNameColor\" IsEnabled=\"@CanLearnSkill\" Text=\"@PerkQOLSkillNameText\" DoNotAcceptEvents=\"true\" />");
         }
 
         [PrefabExtensionXmlNode]
