@@ -673,23 +673,32 @@ namespace PerkQOL
         internal static bool SkillHasMatch(SkillObject skill) =>
             TryGetSkillMatchStats(skill, out _, out _);
 
-        /// <summary>
-        /// Temporary A/B/C skill-name highlight styles for comparison (left / middle / right grid columns).
-        /// </summary>
+        /// <summary>Temporary skill-name highlight styles for side-by-side comparison.</summary>
         internal enum SkillMatchVisual
         {
-            /// <summary>Full name (including ", X, Y") in white when matched.</summary>
+            /// <summary>Full name in white when matched.</summary>
             White = 0,
+            /// <summary>Full name in soft cyan when matched.</summary>
+            SoftCyan = 1,
             /// <summary>Full name tinted; darker when the skill card is selected.</summary>
-            SelectionAware = 1,
+            SelectionAware = 2,
+            /// <summary>Full name in pale gold (no outline) when matched.</summary>
+            PaleGold = 3,
             /// <summary>Gold name with a dark drop-shadow outline.</summary>
-            GoldOutline = 2,
+            GoldOutline = 4,
         }
 
-        // Column 1 / 2 / 3 of the character skill grid (plus naval extras in the same columns).
-        private static readonly HashSet<string> SuffixTintSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        private const int SkillMatchVisualCount = 5;
+
+        // Spread across the grid so each style is easy to find (left / mid / right + splits).
+        private static readonly HashSet<string> WhiteSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "OneHanded", "Bow", "Riding", "Scouting", "Charm", "Steward", "Mariner",
+            "OneHanded", "Riding", "Charm", "Mariner",
+        };
+
+        private static readonly HashSet<string> SoftCyanSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Bow", "Scouting", "Steward",
         };
 
         private static readonly HashSet<string> SelectionAwareSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -697,22 +706,37 @@ namespace PerkQOL
             "TwoHanded", "Crossbow", "Athletics", "Tactics", "Leadership", "Medicine", "Boatswain",
         };
 
+        private static readonly HashSet<string> PaleGoldSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Polearm", "Crafting", "Trade", "Shipmaster",
+        };
+
         private static readonly HashSet<string> GoldOutlineSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "Polearm", "Throwing", "Crafting", "Roguery", "Trade", "Engineering", "Shipmaster",
+            "Throwing", "Roguery", "Engineering",
         };
 
         internal static SkillMatchVisual MatchVisualOf(SkillObject skill)
         {
             string id = skill?.StringId ?? "";
-            if (SuffixTintSkillIds.Contains(id))
+            if (WhiteSkillIds.Contains(id))
             {
                 return SkillMatchVisual.White;
+            }
+
+            if (SoftCyanSkillIds.Contains(id))
+            {
+                return SkillMatchVisual.SoftCyan;
             }
 
             if (SelectionAwareSkillIds.Contains(id))
             {
                 return SkillMatchVisual.SelectionAware;
+            }
+
+            if (PaleGoldSkillIds.Contains(id))
+            {
+                return SkillMatchVisual.PaleGold;
             }
 
             if (GoldOutlineSkillIds.Contains(id))
@@ -726,7 +750,7 @@ namespace PerkQOL
                 hash = (hash * 33) ^ c;
             }
 
-            return (SkillMatchVisual)(Math.Abs(hash) % 3);
+            return (SkillMatchVisual)(Math.Abs(hash) % SkillMatchVisualCount);
         }
 
         /// <summary>
@@ -1593,6 +1617,8 @@ namespace PerkQOL
         // Color.FromUint is AARRGGBB. The skill-name brush is #FDF1DFFF.
         private static readonly Color NormalColor = Color.FromUint(0xFFFDF1DFu);
         private static readonly Color WhiteColor = Color.FromUint(0xFFFFFFFFu);
+        private static readonly Color SoftCyanColor = Color.FromUint(0xFF7FDBDAu);
+        private static readonly Color PaleGoldColor = Color.FromUint(0xFFFFE08Au);
         private static readonly Color MatchBrightColor = Color.FromUint(0xFFFF5C4Cu);
         private static readonly Color MatchSelectedColor = Color.FromUint(0xFF5C1A12u);
         private static readonly Color GoldColor = Color.FromUint(0xFFFFC45Au);
@@ -1629,11 +1655,10 @@ namespace PerkQOL
             }
 
             PerkHighlighter.SkillMatchVisual visual = PerkHighlighter.MatchVisualOf(_skill);
-            // White and selection-aware both use the single full-name TextWidget.
+            // Flat colors share one TextWidget; only GoldOutline uses the drop-shadow stack.
             IsPerkQOLSkillStyleSuffix = false;
-            IsPerkQOLSkillStyleSelect = visual == PerkHighlighter.SkillMatchVisual.White
-                || visual == PerkHighlighter.SkillMatchVisual.SelectionAware;
             IsPerkQOLSkillStyleGold = visual == PerkHighlighter.SkillMatchVisual.GoldOutline;
+            IsPerkQOLSkillStyleSelect = !IsPerkQOLSkillStyleGold;
 
             bool matched = PerkHighlighter.TryGetSkillMatchStats(_skill, out int matchCount, out int maxRequirement);
             IsPerkQOLSkillMatched = matched;
@@ -1651,6 +1676,12 @@ namespace PerkQOL
             {
                 case PerkHighlighter.SkillMatchVisual.White:
                     PerkQOLSkillNameColor = WhiteColor;
+                    break;
+                case PerkHighlighter.SkillMatchVisual.SoftCyan:
+                    PerkQOLSkillNameColor = SoftCyanColor;
+                    break;
+                case PerkHighlighter.SkillMatchVisual.PaleGold:
+                    PerkQOLSkillNameColor = PaleGoldColor;
                     break;
                 case PerkHighlighter.SkillMatchVisual.SelectionAware:
                     PerkQOLSkillNameColor = ViewModel != null && ViewModel.IsInspected
