@@ -1698,8 +1698,8 @@ namespace PerkQOL
                 </Widget>
                 <ScrollbarWidget Id=""ProfileScroll"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""8"" HorizontalAlignment=""Right"" MarginRight=""2"" AlignmentAxis=""Vertical"" Handle=""ProfileScrollHandle"" MaxValue=""100"" MinValue=""0"">
                   <Children>
-                    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""4"" HorizontalAlignment=""Center"" Sprite=""BlankWhiteSquare_9"" AlphaFactor=""0.2"" Color=""#5A4033FF"" />
-                    <ImageWidget Id=""ProfileScrollHandle"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""8"" SuggestedHeight=""10"" HorizontalAlignment=""Center"" Sprite=""BlankWhiteSquare_9"" Color=""#C1A57BFF"" />
+                    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""4"" HorizontalAlignment=""Center"" Sprite=""BlankWhiteSquare_9"" AlphaFactor=""0.15"" Color=""#3A2A20FF"" />
+                    <Widget Id=""ProfileScrollHandle"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""8"" SuggestedHeight=""10"" HorizontalAlignment=""Center"" Sprite=""BlankWhiteSquare_9"" AlphaFactor=""0.45"" Color=""#8B7355FF"" />
                   </Children>
                 </ScrollbarWidget>
               </Children>
