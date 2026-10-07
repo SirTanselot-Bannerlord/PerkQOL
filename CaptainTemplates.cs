@@ -61,7 +61,7 @@ namespace PerkQOL
             EnsureLoaded();
             if (Find(name) >= 0)
             {
-                error = new TextObject("{=PQOL_CT_Exists}That name is already saved. Update replaces it.");
+                error = new TextObject("{=PQOL_CT_Exists}That name is already saved.");
                 return false;
             }
 
@@ -75,7 +75,8 @@ namespace PerkQOL
             return TryWrite(out error);
         }
 
-        internal static bool TryUpdate(string rawName, TroopUsageFlags flags, bool generic, out TextObject error)
+        /// <summary>Creates a template or overwrites the existing one with the same name.</summary>
+        internal static bool TrySave(string rawName, TroopUsageFlags flags, bool generic, out TextObject error)
         {
             if (!TryNormalize(rawName, out string name, out error))
             {
@@ -84,14 +85,20 @@ namespace PerkQOL
 
             EnsureLoaded();
             int index = Find(name);
-            if (index < 0)
+            if (index >= 0)
             {
-                error = new TextObject("{=PQOL_CT_Missing}No saved template with that name.");
+                Items[index].Flags = (int)flags;
+                Items[index].Generic = generic;
+                return TryWrite(out error);
+            }
+
+            if (Items.Count >= MaxCount)
+            {
+                error = new TextObject("{=PQOL_CT_Full}The list holds 16 templates. Delete one first.");
                 return false;
             }
 
-            Items[index].Flags = (int)flags;
-            Items[index].Generic = generic;
+            Items.Add(new CaptainTemplate { Name = name, Flags = (int)flags, Generic = generic });
             return TryWrite(out error);
         }
 
