@@ -1,7 +1,8 @@
 <Brushes>
   <Brush Name="PerkQOL.CaptainFlags.Button">
     <Layers>
-      <BrushLayer Name="Default" Sprite="PartyScreen\recruit_prisoner" />
+      <!-- Dark warm brown to sit in the leather button; hover ColorFactor lifts it. -->
+      <BrushLayer Name="Default" Sprite="SPGeneral\GameMenu\craft_icon" Color="#6B5C4AFF" />
     </Layers>
     <Styles>
       <Style Name="Default">
