@@ -91,11 +91,46 @@ namespace PerkQOL
 
         internal static IEnumerable<TextObject> PresetNames => CaptainFilterNames;
 
-        private const TroopUsageFlags AllTroopFlags =
+        /// <summary>Same values as <c>PerkFixes.TroopUsageBits</c>; kept local so PerkFixes stays optional.</summary>
+        private const TroopUsageFlags LandBit = (TroopUsageFlags)2048;
+        private const TroopUsageFlags NavalBit = (TroopUsageFlags)4096;
+
+        private const TroopUsageFlags BaseTroopFlags =
             TroopUsageFlags.OnFoot | TroopUsageFlags.Mounted | TroopUsageFlags.Melee | TroopUsageFlags.Ranged
             | TroopUsageFlags.OneHandedUser | TroopUsageFlags.ShieldUser | TroopUsageFlags.TwoHandedUser
             | TroopUsageFlags.PolearmUser | TroopUsageFlags.BowUser | TroopUsageFlags.ThrownUser
             | TroopUsageFlags.CrossbowUser;
+
+        private static bool? _perkFixesLoaded;
+        private static CaptainFlagOption[] _flagOptions;
+        private static TroopUsageFlags _selectedCaptainFlags;
+        private static bool _selectedCaptainFlagsReady;
+
+        /// <summary>True when PerkFixes is in the load list (Land/Naval captain bits).</summary>
+        internal static bool PerkFixesLoaded =>
+            _perkFixesLoaded ?? (_perkFixesLoaded = AccessTools.TypeByName("PerkFixes.TroopUsageBits") != null).Value;
+
+        private static TroopUsageFlags AllTroopFlags =>
+            PerkFixesLoaded ? BaseTroopFlags | LandBit | NavalBit : BaseTroopFlags;
+
+        private static TroopUsageFlags SelectedCaptainFlags
+        {
+            get
+            {
+                if (!_selectedCaptainFlagsReady)
+                {
+                    _selectedCaptainFlags = AllTroopFlags;
+                    _selectedCaptainFlagsReady = true;
+                }
+
+                return _selectedCaptainFlags;
+            }
+            set
+            {
+                _selectedCaptainFlags = value;
+                _selectedCaptainFlagsReady = true;
+            }
+        }
 
         internal readonly struct CaptainFlagOption
         {
@@ -115,67 +150,85 @@ namespace PerkQOL
 
         /// <summary>
         /// Flags the captain menu can tick. Generic is the untagged captain effects (mask None), not a troop flag.
-        /// Bandit culture is left out on purpose.
+        /// Land/Naval appear only when PerkFixes is loaded. Bandit culture is left out on purpose.
         /// </summary>
-        internal static readonly CaptainFlagOption[] FlagOptions =
+        internal static CaptainFlagOption[] FlagOptions => _flagOptions ?? (_flagOptions = BuildFlagOptions());
+
+        private static CaptainFlagOption[] BuildFlagOptions()
         {
-            new CaptainFlagOption(
-                new TextObject("{=PQOL_FF_OnFoot}On foot"),
-                new TextObject("{=PQOL_FH_OnFoot}Captain perks for troops fighting on foot."),
-                TroopUsageFlags.OnFoot),
-            new CaptainFlagOption(
-                new TextObject("{=PQOL_FF_Mounted}Mounted"),
-                new TextObject("{=PQOL_FH_Mounted}Captain perks for mounted troops."),
-                TroopUsageFlags.Mounted),
-            new CaptainFlagOption(
+            var options = new List<CaptainFlagOption>
+            {
+                new CaptainFlagOption(
+                    new TextObject("{=PQOL_FF_OnFoot}On foot"),
+                    new TextObject("{=PQOL_FH_OnFoot}Captain perks for troops fighting on foot."),
+                    TroopUsageFlags.OnFoot),
+                new CaptainFlagOption(
+                    new TextObject("{=PQOL_FF_Mounted}Mounted"),
+                    new TextObject("{=PQOL_FH_Mounted}Captain perks for mounted troops."),
+                    TroopUsageFlags.Mounted),
+            };
+
+            if (PerkFixesLoaded)
+            {
+                options.Add(new CaptainFlagOption(
+                    new TextObject("{=PQOL_FF_Land}Land"),
+                    new TextObject("{=PQOL_FH_Land}Captain perks that apply in land battles (PerkFixes)."),
+                    LandBit));
+                options.Add(new CaptainFlagOption(
+                    new TextObject("{=PQOL_FF_Naval}Naval"),
+                    new TextObject("{=PQOL_FH_Naval}Captain perks that apply in naval battles (PerkFixes)."),
+                    NavalBit));
+            }
+
+            options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Melee}Melee"),
                 new TextObject("{=PQOL_FH_Melee}Captain perks aimed at melee troops."),
-                TroopUsageFlags.Melee),
-            new CaptainFlagOption(
+                TroopUsageFlags.Melee));
+            options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Ranged}Ranged"),
                 new TextObject("{=PQOL_FH_Ranged}Captain perks aimed at ranged troops."),
-                TroopUsageFlags.Ranged),
-            new CaptainFlagOption(
+                TroopUsageFlags.Ranged));
+            options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_OneHanded}1-Handed"),
                 new TextObject("{=PQOL_FH_OneHanded}Captain perks for one-handed weapon users."),
-                TroopUsageFlags.OneHandedUser),
-            new CaptainFlagOption(
+                TroopUsageFlags.OneHandedUser));
+            options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Shield}Shield"),
                 new TextObject("{=PQOL_FH_Shield}Captain perks for troops that use shields."),
-                TroopUsageFlags.ShieldUser),
-            new CaptainFlagOption(
+                TroopUsageFlags.ShieldUser));
+            options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_TwoHanded}2-Handed"),
                 new TextObject("{=PQOL_FH_TwoHanded}Captain perks for two-handed weapon users."),
-                TroopUsageFlags.TwoHandedUser),
-            new CaptainFlagOption(
+                TroopUsageFlags.TwoHandedUser));
+            options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Polearm}Polearm"),
                 new TextObject("{=PQOL_FH_Polearm}Captain perks for polearm users."),
-                TroopUsageFlags.PolearmUser),
-            new CaptainFlagOption(
+                TroopUsageFlags.PolearmUser));
+            options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Bow}Bow"),
                 new TextObject("{=PQOL_FH_Bow}Captain perks for bow users."),
-                TroopUsageFlags.BowUser),
-            new CaptainFlagOption(
+                TroopUsageFlags.BowUser));
+            options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Thrown}Thrown"),
                 new TextObject("{=PQOL_FH_Thrown}Captain perks for thrown-weapon users."),
-                TroopUsageFlags.ThrownUser),
-            new CaptainFlagOption(
+                TroopUsageFlags.ThrownUser));
+            options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Crossbow}Crossbow"),
                 new TextObject("{=PQOL_FH_Crossbow}Captain perks for crossbow users."),
-                TroopUsageFlags.CrossbowUser),
-            new CaptainFlagOption(
+                TroopUsageFlags.CrossbowUser));
+            options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Generic}Generic"),
                 new TextObject("{=PQOL_FH_Generic}Captain perks with no troop flag (untagged)."),
                 TroopUsageFlags.None,
-                true),
-        };
+                true));
+            return options.ToArray();
+        }
 
         private static readonly HashSet<Mode> Selected = new HashSet<Mode>();
 
         private static readonly List<WeakReference<PerkHighlightPerkMixin>> Perks = new List<WeakReference<PerkHighlightPerkMixin>>();
         private static readonly List<WeakReference<PerkHighlightSkillMixin>> Skills = new List<WeakReference<PerkHighlightSkillMixin>>();
 
-        private static TroopUsageFlags _captainFlags = AllTroopFlags;
         private static bool _includeUntagged = true;
         private static string _searchText = "";
         private static WeakReference<PerkHighlightScreenMixin> _screen;
@@ -187,7 +240,7 @@ namespace PerkQOL
 
         internal static string NameOf(Mode mode) => Names[mode].ToString();
 
-        internal static TroopUsageFlags CurrentFlags => _captainFlags;
+        internal static TroopUsageFlags CurrentFlags => SelectedCaptainFlags;
 
         internal static bool IncludeUntagged => _includeUntagged;
 
@@ -223,7 +276,7 @@ namespace PerkQOL
         /// <summary>First matching preset/template for the current ticks, ignoring the pin.</summary>
         private static int DerivePresetIndex()
         {
-            if (_includeUntagged && _captainFlags == AllTroopFlags)
+            if (_includeUntagged && SelectedCaptainFlags == AllTroopFlags)
             {
                 return (int)CaptainTroopClass.Any;
             }
@@ -231,16 +284,16 @@ namespace PerkQOL
             // The four troop presets include Generic only when the setting says so. Any always includes it.
             if (_includeUntagged == Settings.Current.CaptainPresetsIncludeGeneric)
             {
-                if (_captainFlags == FormationFlagsOf(CaptainTroopClass.Infantry)) return (int)CaptainTroopClass.Infantry;
-                if (_captainFlags == FormationFlagsOf(CaptainTroopClass.Ranged)) return (int)CaptainTroopClass.Ranged;
-                if (_captainFlags == FormationFlagsOf(CaptainTroopClass.Cavalry)) return (int)CaptainTroopClass.Cavalry;
-                if (_captainFlags == FormationFlagsOf(CaptainTroopClass.HorseArcher)) return (int)CaptainTroopClass.HorseArcher;
+                if (SelectedCaptainFlags == FormationFlagsOf(CaptainTroopClass.Infantry)) return (int)CaptainTroopClass.Infantry;
+                if (SelectedCaptainFlags == FormationFlagsOf(CaptainTroopClass.Ranged)) return (int)CaptainTroopClass.Ranged;
+                if (SelectedCaptainFlags == FormationFlagsOf(CaptainTroopClass.Cavalry)) return (int)CaptainTroopClass.Cavalry;
+                if (SelectedCaptainFlags == FormationFlagsOf(CaptainTroopClass.HorseArcher)) return (int)CaptainTroopClass.HorseArcher;
             }
 
             IReadOnlyList<CaptainTemplate> templates = CaptainTemplates.All;
             for (int i = 0; i < templates.Count; i++)
             {
-                if (templates[i].Generic == _includeUntagged && (TroopUsageFlags)templates[i].Flags == _captainFlags)
+                if (templates[i].Generic == _includeUntagged && (TroopUsageFlags)templates[i].Flags == SelectedCaptainFlags)
                 {
                     return TemplateIndexBase + i;
                 }
@@ -269,18 +322,18 @@ namespace PerkQOL
             CaptainTemplate template = CaptainTemplates.Get(index - TemplateIndexBase);
             return template != null
                 && template.Generic == _includeUntagged
-                && (TroopUsageFlags)template.Flags == _captainFlags;
+                && (TroopUsageFlags)template.Flags == SelectedCaptainFlags;
         }
 
         private static bool FlagsMatchPreset(CaptainTroopClass troopClass)
         {
             if (troopClass == CaptainTroopClass.Any)
             {
-                return _includeUntagged && _captainFlags == AllTroopFlags;
+                return _includeUntagged && SelectedCaptainFlags == AllTroopFlags;
             }
 
             return _includeUntagged == Settings.Current.CaptainPresetsIncludeGeneric
-                && _captainFlags == FormationFlagsOf(troopClass);
+                && SelectedCaptainFlags == FormationFlagsOf(troopClass);
         }
 
         internal static string SelectedTemplateName()
@@ -294,15 +347,15 @@ namespace PerkQOL
         /// </summary>
         internal static void OnGenericPresetSettingChanged(bool includeGeneric)
         {
-            if (_includeUntagged == includeGeneric || _captainFlags == AllTroopFlags)
+            if (_includeUntagged == includeGeneric || SelectedCaptainFlags == AllTroopFlags)
             {
                 return;
             }
 
-            if (_captainFlags != FormationFlagsOf(CaptainTroopClass.Infantry)
-                && _captainFlags != FormationFlagsOf(CaptainTroopClass.Ranged)
-                && _captainFlags != FormationFlagsOf(CaptainTroopClass.Cavalry)
-                && _captainFlags != FormationFlagsOf(CaptainTroopClass.HorseArcher))
+            if (SelectedCaptainFlags != FormationFlagsOf(CaptainTroopClass.Infantry)
+                && SelectedCaptainFlags != FormationFlagsOf(CaptainTroopClass.Ranged)
+                && SelectedCaptainFlags != FormationFlagsOf(CaptainTroopClass.Cavalry)
+                && SelectedCaptainFlags != FormationFlagsOf(CaptainTroopClass.HorseArcher))
             {
                 return;
             }
@@ -313,7 +366,7 @@ namespace PerkQOL
         }
 
         internal static bool IsFlagOn(CaptainFlagOption option) =>
-            option.Generic ? _includeUntagged : _captainFlags.HasAllFlags(option.Flag);
+            option.Generic ? _includeUntagged : SelectedCaptainFlags.HasAllFlags(option.Flag);
 
         internal static void BindScreen(PerkHighlightScreenMixin screen) =>
             _screen = new WeakReference<PerkHighlightScreenMixin>(screen);
@@ -323,13 +376,13 @@ namespace PerkQOL
             TroopUsageFlags flags = troopClass == CaptainTroopClass.Any ? AllTroopFlags : FormationFlagsOf(troopClass);
             bool generic = troopClass == CaptainTroopClass.Any || Settings.Current.CaptainPresetsIncludeGeneric;
             _pinnedProfileIndex = (int)troopClass;
-            if (flags == _captainFlags && generic == _includeUntagged)
+            if (flags == SelectedCaptainFlags && generic == _includeUntagged)
             {
                 NotifyScreen();
                 return;
             }
 
-            _captainFlags = flags;
+            SelectedCaptainFlags = flags;
             _includeUntagged = generic;
             RefreshAll();
             NotifyScreen();
@@ -346,13 +399,13 @@ namespace PerkQOL
 
             _pinnedProfileIndex = TemplateIndexBase + templateIndex;
             TroopUsageFlags flags = (TroopUsageFlags)template.Flags;
-            if (flags == _captainFlags && template.Generic == _includeUntagged)
+            if (flags == SelectedCaptainFlags && template.Generic == _includeUntagged)
             {
                 NotifyScreen();
                 return true;
             }
 
-            _captainFlags = flags;
+            SelectedCaptainFlags = flags;
             _includeUntagged = template.Generic;
             RefreshAll();
             NotifyScreen();
@@ -372,13 +425,13 @@ namespace PerkQOL
             }
             else
             {
-                TroopUsageFlags next = selected ? _captainFlags | option.Flag : _captainFlags & ~option.Flag;
-                if (next == _captainFlags)
+                TroopUsageFlags next = selected ? SelectedCaptainFlags | option.Flag : SelectedCaptainFlags & ~option.Flag;
+                if (next == SelectedCaptainFlags)
                 {
                     return;
                 }
 
-                _captainFlags = next;
+                SelectedCaptainFlags = next;
             }
 
             RefreshAll();
@@ -541,7 +594,7 @@ namespace PerkQOL
                 return _includeUntagged;
             }
 
-            return MaskMatchesFormation(mask, _captainFlags);
+            return MaskMatchesFormation(mask, SelectedCaptainFlags);
         }
 
         internal static bool MatchesSearch(PerkObject perk)
@@ -634,14 +687,23 @@ namespace PerkQOL
 
         private static TroopUsageFlags FormationFlagsOf(CaptainTroopClass troopClass)
         {
+            TroopUsageFlags flags;
             switch (troopClass)
             {
-                case CaptainTroopClass.Infantry: return FormationClass.Infantry.GetTroopUsageFlags();
-                case CaptainTroopClass.Ranged: return FormationClass.Ranged.GetTroopUsageFlags();
-                case CaptainTroopClass.Cavalry: return FormationClass.Cavalry.GetTroopUsageFlags();
-                case CaptainTroopClass.HorseArcher: return FormationClass.HorseArcher.GetTroopUsageFlags();
+                case CaptainTroopClass.Infantry: flags = FormationClass.Infantry.GetTroopUsageFlags(); break;
+                case CaptainTroopClass.Ranged: flags = FormationClass.Ranged.GetTroopUsageFlags(); break;
+                case CaptainTroopClass.Cavalry: flags = FormationClass.Cavalry.GetTroopUsageFlags(); break;
+                case CaptainTroopClass.HorseArcher: flags = FormationClass.HorseArcher.GetTroopUsageFlags(); break;
                 default: return TroopUsageFlags.Undefined;
             }
+
+            // PerkFixes scores land formations with the Land bit ORed in; keep the troop presets aligned.
+            if (PerkFixesLoaded)
+            {
+                flags |= LandBit;
+            }
+
+            return flags;
         }
 
         private static bool TryParseFormationKeyword(string query, out TroopUsageFlags flags)
@@ -1609,7 +1671,7 @@ namespace PerkQOL
         <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""BlankWhiteSquare_9"" Color=""#000000FF"" AlphaFactor=""0.6"" DoNotAcceptEvents=""true"" />
       </Children>
     </ButtonWidget>
-    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""820"" SuggestedHeight=""420"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"">
+    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""820"" SuggestedHeight=""450"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"">
       <Children>
         <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""StdAssets\Popup\canvas"" />
         <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""36"" MarginTop=""18"" Brush=""SPOptions.GameKeysGroup.Title.Text"" Brush.FontSize=""30"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLFlagWindowTitle"" />
@@ -1665,7 +1727,7 @@ namespace PerkQOL
           </ItemTemplate>
         </GridWidget>
 
-        <BrushWidget UpdateChildrenStates=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""520"" SuggestedHeight=""34"" MarginLeft=""260"" MarginTop=""220"" Brush=""SaveLoad.Search.Button"">
+        <BrushWidget UpdateChildrenStates=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""520"" SuggestedHeight=""34"" MarginLeft=""260"" MarginTop=""250"" Brush=""SaveLoad.Search.Button"">
           <Children>
             <EditableTextWidget UpdateChildrenStates=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""12"" MarginRight=""12"" MarginTop=""4"" MarginBottom=""4"" Brush=""SaveLoad.Search.InputText"" Brush.FontSize=""18"" Text=""@PerkQOLTemplateName"" />
           </Children>
