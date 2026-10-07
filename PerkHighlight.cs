@@ -80,16 +80,21 @@ namespace PerkQOL
             new TextObject("{=PQOL_CF_Ranged}Archer"),
             new TextObject("{=PQOL_CF_Cavalry}Cavalry"),
             new TextObject("{=PQOL_CF_HorseArcher}H. Archer"),
-            new TextObject("{=PQOL_CF_Custom}Custom"),
         };
 
-        /// <summary>Index of the dropdown row that means "the ticks no longer match a preset or a saved template".</summary>
-        internal const int CustomPresetIndex = 5;
+        /// <summary>Built-in troop presets in the dropdown / profile list (Any through H. Archer).</summary>
+        internal const int BuiltInPresetCount = 5;
 
-        /// <summary>First dropdown index used by a saved template. Rows above this are the built-in presets and Custom.</summary>
-        internal const int TemplateIndexBase = CustomPresetIndex + 1;
+        /// <summary>Sentinel when the ticks match no preset or saved template (not shown in the dropdown).</summary>
+        internal const int UnmatchedIndex = -1;
+
+        /// <summary>First dropdown index used by a saved template.</summary>
+        internal const int TemplateIndexBase = BuiltInPresetCount;
 
         internal static IEnumerable<TextObject> PresetNames => CaptainFilterNames;
+
+        /// <summary>Flag set for the Any preset (all troop bits + Generic).</summary>
+        internal static TroopUsageFlags AnyCaptainFlags => AllTroopFlags;
 
         /// <summary>Same values as <c>PerkFixes.TroopUsageBits</c>; kept local so PerkFixes stays optional.</summary>
         private const TroopUsageFlags LandBit = (TroopUsageFlags)2048;
@@ -282,7 +287,7 @@ namespace PerkQOL
 
         internal static bool AllSelected => Selected.Count == Roles.Length;
 
-        /// <summary>Dropdown index: a preset, a saved template, or <see cref="CustomPresetIndex"/> when the ticks match none.</summary>
+        /// <summary>Dropdown index: a preset, a saved template, or <see cref="UnmatchedIndex"/> when the ticks match none.</summary>
         internal static int PresetIndex()
         {
             if (PinStillValid(_pinnedProfileIndex))
@@ -322,24 +327,24 @@ namespace PerkQOL
                 }
             }
 
-            return CustomPresetIndex;
+            return UnmatchedIndex;
         }
 
         private static bool PinStillValid(int index)
         {
+            if (index == UnmatchedIndex)
+            {
+                return DerivePresetIndex() == UnmatchedIndex;
+            }
+
             if (index < 0)
             {
                 return false;
             }
 
-            if (index < CustomPresetIndex)
+            if (index < BuiltInPresetCount)
             {
                 return FlagsMatchPreset((CaptainTroopClass)index);
-            }
-
-            if (index == CustomPresetIndex)
-            {
-                return DerivePresetIndex() == CustomPresetIndex;
             }
 
             CaptainTemplate template = CaptainTemplates.Get(index - TemplateIndexBase);
@@ -361,7 +366,8 @@ namespace PerkQOL
 
         internal static string SelectedTemplateName()
         {
-            return CaptainTemplates.Get(PresetIndex() - TemplateIndexBase)?.Name;
+            int index = PresetIndex();
+            return index >= TemplateIndexBase ? CaptainTemplates.Get(index - TemplateIndexBase)?.Name : null;
         }
 
         /// <summary>
@@ -673,6 +679,61 @@ namespace PerkQOL
         internal static bool SkillHasMatch(SkillObject skill) =>
             TryGetSkillMatchStats(skill, out _, out _);
 
+        /// <summary>Temporary skill-name match styles for comparison (no selection-dependent colors).</summary>
+        internal enum SkillMatchVisual
+        {
+            BrightWhite = 0,
+            ItalicWhite = 1,
+            SoftBlue = 2,
+            OrangeWhiteBorder = 3,
+            OrangeBlackBorder = 4,
+        }
+
+        private const int SkillMatchVisualCount = 5;
+
+        private static readonly HashSet<string> BrightWhiteSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "OneHanded", "Riding", "Charm", "Mariner",
+        };
+
+        private static readonly HashSet<string> ItalicWhiteSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Bow", "Scouting", "Steward",
+        };
+
+        private static readonly HashSet<string> SoftBlueSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "TwoHanded", "Crossbow", "Athletics", "Tactics", "Leadership", "Medicine", "Boatswain",
+        };
+
+        private static readonly HashSet<string> OrangeWhiteBorderSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Polearm", "Crafting", "Trade", "Shipmaster",
+        };
+
+        private static readonly HashSet<string> OrangeBlackBorderSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Throwing", "Roguery", "Engineering",
+        };
+
+        internal static SkillMatchVisual MatchVisualOf(SkillObject skill)
+        {
+            string id = skill?.StringId ?? "";
+            if (BrightWhiteSkillIds.Contains(id)) return SkillMatchVisual.BrightWhite;
+            if (ItalicWhiteSkillIds.Contains(id)) return SkillMatchVisual.ItalicWhite;
+            if (SoftBlueSkillIds.Contains(id)) return SkillMatchVisual.SoftBlue;
+            if (OrangeWhiteBorderSkillIds.Contains(id)) return SkillMatchVisual.OrangeWhiteBorder;
+            if (OrangeBlackBorderSkillIds.Contains(id)) return SkillMatchVisual.OrangeBlackBorder;
+
+            int hash = 0;
+            foreach (char c in id)
+            {
+                hash = (hash * 33) ^ c;
+            }
+
+            return (SkillMatchVisual)(Math.Abs(hash) % SkillMatchVisualCount);
+        }
+
         /// <summary>
         /// Matching perks for a skill under the current role/search filter: count and highest required skill level.
         /// </summary>
@@ -940,7 +1001,7 @@ namespace PerkQOL
         }
     }
 
-    /// <summary>One row in the captain flag window's profile list (preset, Custom, or a saved template).</summary>
+    /// <summary>One row in the captain flag window's profile list (preset or saved template).</summary>
     public sealed class CaptainProfileVM : ViewModel
     {
         private readonly Action<CaptainProfileVM> _onSelect;
@@ -954,7 +1015,7 @@ namespace PerkQOL
             _isSelected = selected;
         }
 
-        /// <summary>Same index space as the troop dropdown: presets 0–4, Custom 5, templates from 6.</summary>
+        /// <summary>Same index space as the troop dropdown: presets 0–4, templates from 5.</summary>
         internal int FilterIndex { get; }
 
         [DataSourceProperty]
@@ -1084,12 +1145,6 @@ namespace PerkQOL
                 return;
             }
 
-            if (selector.SelectedIndex == PerkHighlighter.CustomPresetIndex)
-            {
-                SyncDropdown();
-                return;
-            }
-
             if (selector.SelectedIndex >= PerkHighlighter.TemplateIndexBase)
             {
                 if (!PerkHighlighter.ApplyTemplate(selector.SelectedIndex - PerkHighlighter.TemplateIndexBase))
@@ -1143,19 +1198,49 @@ namespace PerkQOL
         }
 
         [DataSourceMethod]
+        public void ExecuteNewPerkQOLTemplate()
+        {
+            if (!CaptainTemplates.TryAddUniqueStem(
+                    new TextObject("{=PQOL_CT_New}New").ToString(),
+                    PerkHighlighter.AnyCaptainFlags,
+                    true,
+                    out string created,
+                    out TextObject error))
+            {
+                ShowTemplateMessage(error);
+                return;
+            }
+
+            PerkQOLTemplateName = created;
+            PinTemplateByName(created);
+            IReadOnlyList<CaptainTemplate> templates = CaptainTemplates.All;
+            for (int i = 0; i < templates.Count; i++)
+            {
+                if (string.Equals(templates[i].Name, created, StringComparison.OrdinalIgnoreCase))
+                {
+                    PerkHighlighter.ApplyTemplate(i);
+                    break;
+                }
+            }
+
+            ReloadTemplateDropdown();
+            SyncCaptainFlags();
+        }
+
+        [DataSourceMethod]
         public void ExecuteDuplicatePerkQOLTemplate()
         {
             string baseName = PerkQOLTemplateName;
             if (string.IsNullOrWhiteSpace(baseName))
             {
                 int index = PerkHighlighter.PresetIndex();
-                if (index < PerkHighlighter.CustomPresetIndex)
+                if (index >= 0 && index < PerkHighlighter.BuiltInPresetCount)
                 {
-                    baseName = PerkHighlighter.PresetNames.ElementAtOrDefault(index)?.ToString() ?? "Copy";
+                    baseName = PerkHighlighter.PresetNames.ElementAtOrDefault(index)?.ToString() ?? "";
                 }
-                else
+                else if (index >= PerkHighlighter.TemplateIndexBase)
                 {
-                    baseName = new TextObject("{=PQOL_CT_Copy}Copy").ToString();
+                    baseName = PerkHighlighter.SelectedTemplateName() ?? "";
                 }
             }
 
@@ -1206,7 +1291,7 @@ namespace PerkQOL
         {
             _captainProfiles.Clear();
             int selected = PerkHighlighter.PresetIndex();
-            for (int i = 0; i < PerkHighlighter.CustomPresetIndex; i++)
+            for (int i = 0; i < PerkHighlighter.BuiltInPresetCount; i++)
             {
                 _captainProfiles.Add(new CaptainProfileVM(
                     PerkHighlighter.PresetNames.ElementAt(i).ToString(),
@@ -1231,7 +1316,7 @@ namespace PerkQOL
 
         private void OnProfileSelected(CaptainProfileVM profile)
         {
-            if (profile.FilterIndex < PerkHighlighter.CustomPresetIndex)
+            if (profile.FilterIndex >= 0 && profile.FilterIndex < PerkHighlighter.BuiltInPresetCount)
             {
                 PerkHighlighter.ApplyPreset((PerkHighlighter.CaptainTroopClass)profile.FilterIndex);
             }
@@ -1275,7 +1360,7 @@ namespace PerkQOL
 
             SyncDropdown();
             SyncTemplateName();
-            if (_captainProfiles.Count != PerkHighlighter.CustomPresetIndex + CaptainTemplates.All.Count)
+            if (_captainProfiles.Count != PerkHighlighter.BuiltInPresetCount + CaptainTemplates.All.Count)
             {
                 RebuildProfiles();
             }
@@ -1286,7 +1371,7 @@ namespace PerkQOL
         }
 
         /// <summary>
-        /// A matching template fills the name box. A built-in preset clears it. Custom leaves whatever was typed,
+        /// A matching template fills the name box. A built-in preset clears it. Unmatched ticks leave the typed name
         /// so Update still knows which template the ticks came from.
         /// </summary>
         private void SyncTemplateName()
@@ -1296,7 +1381,7 @@ namespace PerkQOL
             {
                 PerkQOLTemplateName = template;
             }
-            else if (PerkHighlighter.PresetIndex() < PerkHighlighter.CustomPresetIndex)
+            else if (PerkHighlighter.PresetIndex() >= 0 && PerkHighlighter.PresetIndex() < PerkHighlighter.BuiltInPresetCount)
             {
                 PerkQOLTemplateName = "";
             }
@@ -1305,7 +1390,7 @@ namespace PerkQOL
         private void SyncDropdown()
         {
             int index = PerkHighlighter.PresetIndex();
-            if (_captainFilter.SelectedIndex == index)
+            if (index < 0 || _captainFilter.SelectedIndex == index)
             {
                 return;
             }
@@ -1361,6 +1446,9 @@ namespace PerkQOL
                 }
             }
         }
+
+        [DataSourceProperty]
+        public string PerkQOLTemplateNewLabel => new TextObject("{=PQOL_CT_NewBtn}New").ToString();
 
         [DataSourceProperty]
         public string PerkQOLTemplateSaveLabel => new TextObject("{=PQOL_CT_Save}Save").ToString();
@@ -1534,14 +1622,21 @@ namespace PerkQOL
     [ViewModelMixin("RefreshValues")]
     public sealed class PerkHighlightSkillMixin : BaseViewModelMixin<SkillVM>
     {
-        // Color.FromUint is AARRGGBB. The skill-name brush is #FDF1DFFF; matches use gold with a dark outline.
+        // Color.FromUint is AARRGGBB. The skill-name brush is #FDF1DFFF.
         private static readonly Color NormalColor = Color.FromUint(0xFFFDF1DFu);
-        private static readonly Color MatchColor = Color.FromUint(0xFFFFC45Au);
+        private static readonly Color BrightWhiteColor = Color.FromUint(0xFFFFFFFFu);
+        private static readonly Color SoftBlueColor = Color.FromUint(0xFFA8D4FFu);
+        private static readonly Color OrangeColor = Color.FromUint(0xFFFF8C42u);
+        private static readonly Color WhiteBorderColor = Color.FromUint(0xFFFFFFFFu);
+        private static readonly Color BlackBorderColor = Color.FromUint(0xFF1A120Cu);
 
         private readonly SkillObject _skill;
         private Color _nameColor = NormalColor;
+        private Color _outlineColor = BlackBorderColor;
         private string _nameText = "";
         private bool _matched;
+        private bool _italic;
+        private bool _outline;
 
         public PerkHighlightSkillMixin(SkillVM vm) : base(vm)
         {
@@ -1567,7 +1662,45 @@ namespace PerkQOL
             bool matched = PerkHighlighter.TryGetSkillMatchStats(_skill, out int matchCount, out int maxRequirement);
             IsPerkQOLSkillMatched = matched;
             PerkQOLSkillNameText = matched ? baseName + ", " + matchCount + ", " + maxRequirement : baseName;
-            PerkQOLSkillNameColor = matched ? MatchColor : NormalColor;
+
+            if (!matched)
+            {
+                PerkQOLSkillNameColor = NormalColor;
+                IsPerkQOLSkillItalic = false;
+                IsPerkQOLSkillOutline = false;
+                return;
+            }
+
+            switch (PerkHighlighter.MatchVisualOf(_skill))
+            {
+                case PerkHighlighter.SkillMatchVisual.BrightWhite:
+                    PerkQOLSkillNameColor = BrightWhiteColor;
+                    IsPerkQOLSkillItalic = false;
+                    IsPerkQOLSkillOutline = false;
+                    break;
+                case PerkHighlighter.SkillMatchVisual.ItalicWhite:
+                    PerkQOLSkillNameColor = BrightWhiteColor;
+                    IsPerkQOLSkillItalic = true;
+                    IsPerkQOLSkillOutline = false;
+                    break;
+                case PerkHighlighter.SkillMatchVisual.SoftBlue:
+                    PerkQOLSkillNameColor = SoftBlueColor;
+                    IsPerkQOLSkillItalic = false;
+                    IsPerkQOLSkillOutline = false;
+                    break;
+                case PerkHighlighter.SkillMatchVisual.OrangeWhiteBorder:
+                    PerkQOLSkillNameColor = OrangeColor;
+                    PerkQOLSkillOutlineColor = WhiteBorderColor;
+                    IsPerkQOLSkillItalic = false;
+                    IsPerkQOLSkillOutline = true;
+                    break;
+                default:
+                    PerkQOLSkillNameColor = OrangeColor;
+                    PerkQOLSkillOutlineColor = BlackBorderColor;
+                    IsPerkQOLSkillItalic = false;
+                    IsPerkQOLSkillOutline = true;
+                    break;
+            }
         }
 
         [DataSourceProperty]
@@ -1582,6 +1715,22 @@ namespace PerkQOL
                 }
 
                 _nameColor = value;
+                OnPropertyChangedWithValue(value);
+            }
+        }
+
+        [DataSourceProperty]
+        public Color PerkQOLSkillOutlineColor
+        {
+            get => _outlineColor;
+            set
+            {
+                if (_outlineColor.ToUnsignedInteger() == value.ToUnsignedInteger())
+                {
+                    return;
+                }
+
+                _outlineColor = value;
                 OnPropertyChangedWithValue(value);
             }
         }
@@ -1614,6 +1763,38 @@ namespace PerkQOL
                 }
 
                 _matched = value;
+                OnPropertyChangedWithValue(value);
+            }
+        }
+
+        [DataSourceProperty]
+        public bool IsPerkQOLSkillItalic
+        {
+            get => _italic;
+            set
+            {
+                if (value == _italic)
+                {
+                    return;
+                }
+
+                _italic = value;
+                OnPropertyChangedWithValue(value);
+            }
+        }
+
+        [DataSourceProperty]
+        public bool IsPerkQOLSkillOutline
+        {
+            get => _outline;
+            set
+            {
+                if (value == _outline)
+                {
+                    return;
+                }
+
+                _outline = value;
                 OnPropertyChangedWithValue(value);
             }
         }
@@ -1814,31 +1995,36 @@ namespace PerkQOL
           </Children>
         </BrushWidget>
 
-        <ListPanel WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""Fixed"" SuggestedHeight=""44"" HorizontalAlignment=""Right"" VerticalAlignment=""Bottom"" MarginRight=""28"" MarginBottom=""24"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
+        <ListPanel WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""Fixed"" SuggestedHeight=""44"" HorizontalAlignment=""Right"" VerticalAlignment=""Bottom"" MarginRight=""20"" MarginBottom=""24"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
           <Children>
-            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""100"" SuggestedHeight=""40"" MarginLeft=""4"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteSavePerkQOLTemplate"" UpdateChildrenStates=""true"">
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""72"" SuggestedHeight=""40"" MarginLeft=""3"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteNewPerkQOLTemplate"" UpdateChildrenStates=""true"">
               <Children>
-                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""18"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateSaveLabel"" />
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""4"" MarginRight=""4"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""17"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateNewLabel"" />
               </Children>
             </ButtonWidget>
-            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""110"" SuggestedHeight=""40"" MarginLeft=""4"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteDuplicatePerkQOLTemplate"" UpdateChildrenStates=""true"">
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""72"" SuggestedHeight=""40"" MarginLeft=""3"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteSavePerkQOLTemplate"" UpdateChildrenStates=""true"">
               <Children>
-                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""18"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateDuplicateLabel"" />
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""4"" MarginRight=""4"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""17"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateSaveLabel"" />
               </Children>
             </ButtonWidget>
-            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""100"" SuggestedHeight=""40"" MarginLeft=""4"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteUpdatePerkQOLTemplate"" UpdateChildrenStates=""true"">
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""90"" SuggestedHeight=""40"" MarginLeft=""3"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteDuplicatePerkQOLTemplate"" UpdateChildrenStates=""true"">
               <Children>
-                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""18"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateUpdateLabel"" />
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""4"" MarginRight=""4"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""17"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateDuplicateLabel"" />
               </Children>
             </ButtonWidget>
-            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""100"" SuggestedHeight=""40"" MarginLeft=""4"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteDeletePerkQOLTemplate"" UpdateChildrenStates=""true"">
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""80"" SuggestedHeight=""40"" MarginLeft=""3"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteUpdatePerkQOLTemplate"" UpdateChildrenStates=""true"">
               <Children>
-                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""18"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateDeleteLabel"" />
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""4"" MarginRight=""4"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""17"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateUpdateLabel"" />
               </Children>
             </ButtonWidget>
-            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""100"" SuggestedHeight=""40"" MarginLeft=""4"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteClosePerkQOLFlagMenu"" UpdateChildrenStates=""true"">
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""72"" SuggestedHeight=""40"" MarginLeft=""3"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteDeletePerkQOLTemplate"" UpdateChildrenStates=""true"">
               <Children>
-                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""18"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLFlagWindowCloseLabel"" />
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""4"" MarginRight=""4"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""17"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateDeleteLabel"" />
+              </Children>
+            </ButtonWidget>
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""72"" SuggestedHeight=""40"" MarginLeft=""3"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteClosePerkQOLFlagMenu"" UpdateChildrenStates=""true"">
+              <Children>
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""4"" MarginRight=""4"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""17"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLFlagWindowCloseLabel"" />
               </Children>
             </ButtonWidget>
           </Children>
@@ -1850,7 +2036,7 @@ namespace PerkQOL
 </Widget>";
     }
 
-    /// <summary>Replaces the skill name so matches use gold text with a dark drop-shadow outline.</summary>
+    /// <summary>Replaces the skill name; match styling is chosen per skill for A/B comparison.</summary>
     [PrefabExtension("SkillGridItem", "descendant::TextWidget[@Text='@NameText']")]
     public sealed class PerkHighlightSkillNamePatch : PrefabExtensionInsertPatch
     {
@@ -1860,14 +2046,18 @@ namespace PerkQOL
 
         public PerkHighlightSkillNamePatch()
         {
+            // Outline (optional) + roman / italic main text. Italic uses FontStyle when the brush supports it.
             _document.LoadXml(
                 "<Widget WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"Fixed\" SuggestedHeight=\"!NameText.Height\" " +
                 "VerticalAlignment=\"Top\" MarginLeft=\"10\" DoNotAcceptEvents=\"true\">" +
                 "<Children>" +
-                "<TextWidget IsVisible=\"@IsPerkQOLSkillMatched\" WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"StretchToParent\" " +
-                "PositionXOffset=\"1\" PositionYOffset=\"1\" Brush=\"CharacterDeveloper.GridSkillName.Text\" Brush.FontColor=\"#1A120CFF\" " +
+                "<TextWidget IsVisible=\"@IsPerkQOLSkillOutline\" WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"StretchToParent\" " +
+                "PositionXOffset=\"1\" PositionYOffset=\"1\" Brush=\"CharacterDeveloper.GridSkillName.Text\" " +
+                "Brush.FontColor=\"@PerkQOLSkillOutlineColor\" IsEnabled=\"@CanLearnSkill\" Text=\"@PerkQOLSkillNameText\" DoNotAcceptEvents=\"true\" />" +
+                "<TextWidget IsVisible=\"@IsPerkQOLSkillItalic\" WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"StretchToParent\" " +
+                "Brush=\"CharacterDeveloper.GridSkillName.Text\" Brush.FontStyle=\"Italic\" Brush.FontColor=\"@PerkQOLSkillNameColor\" " +
                 "IsEnabled=\"@CanLearnSkill\" Text=\"@PerkQOLSkillNameText\" DoNotAcceptEvents=\"true\" />" +
-                "<TextWidget WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"StretchToParent\" " +
+                "<TextWidget IsHidden=\"@IsPerkQOLSkillItalic\" WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"StretchToParent\" " +
                 "Brush=\"CharacterDeveloper.GridSkillName.Text\" Brush.FontColor=\"@PerkQOLSkillNameColor\" IsEnabled=\"@CanLearnSkill\" " +
                 "Text=\"@PerkQOLSkillNameText\" DoNotAcceptEvents=\"true\" />" +
                 "</Children>" +
