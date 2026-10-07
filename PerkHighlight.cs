@@ -673,86 +673,6 @@ namespace PerkQOL
         internal static bool SkillHasMatch(SkillObject skill) =>
             TryGetSkillMatchStats(skill, out _, out _);
 
-        /// <summary>Temporary skill-name highlight styles for side-by-side comparison.</summary>
-        internal enum SkillMatchVisual
-        {
-            /// <summary>Full name in white when matched.</summary>
-            White = 0,
-            /// <summary>Full name in soft cyan when matched.</summary>
-            SoftCyan = 1,
-            /// <summary>Full name tinted; darker when the skill card is selected.</summary>
-            SelectionAware = 2,
-            /// <summary>Full name in pale gold (no outline) when matched.</summary>
-            PaleGold = 3,
-            /// <summary>Gold name with a dark drop-shadow outline.</summary>
-            GoldOutline = 4,
-        }
-
-        private const int SkillMatchVisualCount = 5;
-
-        // Spread across the grid so each style is easy to find (left / mid / right + splits).
-        private static readonly HashSet<string> WhiteSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "OneHanded", "Riding", "Charm", "Mariner",
-        };
-
-        private static readonly HashSet<string> SoftCyanSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Bow", "Scouting", "Steward",
-        };
-
-        private static readonly HashSet<string> SelectionAwareSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "TwoHanded", "Crossbow", "Athletics", "Tactics", "Leadership", "Medicine", "Boatswain",
-        };
-
-        private static readonly HashSet<string> PaleGoldSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Polearm", "Crafting", "Trade", "Shipmaster",
-        };
-
-        private static readonly HashSet<string> GoldOutlineSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Throwing", "Roguery", "Engineering",
-        };
-
-        internal static SkillMatchVisual MatchVisualOf(SkillObject skill)
-        {
-            string id = skill?.StringId ?? "";
-            if (WhiteSkillIds.Contains(id))
-            {
-                return SkillMatchVisual.White;
-            }
-
-            if (SoftCyanSkillIds.Contains(id))
-            {
-                return SkillMatchVisual.SoftCyan;
-            }
-
-            if (SelectionAwareSkillIds.Contains(id))
-            {
-                return SkillMatchVisual.SelectionAware;
-            }
-
-            if (PaleGoldSkillIds.Contains(id))
-            {
-                return SkillMatchVisual.PaleGold;
-            }
-
-            if (GoldOutlineSkillIds.Contains(id))
-            {
-                return SkillMatchVisual.GoldOutline;
-            }
-
-            int hash = 0;
-            foreach (char c in id)
-            {
-                hash = (hash * 33) ^ c;
-            }
-
-            return (SkillMatchVisual)(Math.Abs(hash) % SkillMatchVisualCount);
-        }
-
         /// <summary>
         /// Matching perks for a skill under the current role/search filter: count and highest required skill level.
         /// </summary>
@@ -1614,24 +1534,14 @@ namespace PerkQOL
     [ViewModelMixin("RefreshValues")]
     public sealed class PerkHighlightSkillMixin : BaseViewModelMixin<SkillVM>
     {
-        // Color.FromUint is AARRGGBB. The skill-name brush is #FDF1DFFF.
+        // Color.FromUint is AARRGGBB. The skill-name brush is #FDF1DFFF; matches use gold with a dark outline.
         private static readonly Color NormalColor = Color.FromUint(0xFFFDF1DFu);
-        private static readonly Color WhiteColor = Color.FromUint(0xFFFFFFFFu);
-        private static readonly Color SoftCyanColor = Color.FromUint(0xFF7FDBDAu);
-        private static readonly Color PaleGoldColor = Color.FromUint(0xFFFFE08Au);
-        private static readonly Color MatchBrightColor = Color.FromUint(0xFFFF5C4Cu);
-        private static readonly Color MatchSelectedColor = Color.FromUint(0xFF5C1A12u);
-        private static readonly Color GoldColor = Color.FromUint(0xFFFFC45Au);
+        private static readonly Color MatchColor = Color.FromUint(0xFFFFC45Au);
 
         private readonly SkillObject _skill;
         private Color _nameColor = NormalColor;
         private string _nameText = "";
-        private string _baseName = "";
-        private string _matchSuffix = "";
         private bool _matched;
-        private bool _styleSuffix;
-        private bool _styleSelect;
-        private bool _styleGold;
 
         public PerkHighlightSkillMixin(SkillVM vm) : base(vm)
         {
@@ -1654,47 +1564,10 @@ namespace PerkQOL
                 baseName = _skill?.Name?.ToString() ?? "";
             }
 
-            PerkHighlighter.SkillMatchVisual visual = PerkHighlighter.MatchVisualOf(_skill);
-            // Flat colors share one TextWidget; only GoldOutline uses the drop-shadow stack.
-            IsPerkQOLSkillStyleSuffix = false;
-            IsPerkQOLSkillStyleGold = visual == PerkHighlighter.SkillMatchVisual.GoldOutline;
-            IsPerkQOLSkillStyleSelect = !IsPerkQOLSkillStyleGold;
-
             bool matched = PerkHighlighter.TryGetSkillMatchStats(_skill, out int matchCount, out int maxRequirement);
             IsPerkQOLSkillMatched = matched;
-            PerkQOLSkillBaseName = baseName;
-            PerkQOLSkillMatchSuffix = matched ? ", " + matchCount + ", " + maxRequirement : "";
-            PerkQOLSkillNameText = matched ? baseName + PerkQOLSkillMatchSuffix : baseName;
-
-            if (!matched)
-            {
-                PerkQOLSkillNameColor = NormalColor;
-                return;
-            }
-
-            switch (visual)
-            {
-                case PerkHighlighter.SkillMatchVisual.White:
-                    PerkQOLSkillNameColor = WhiteColor;
-                    break;
-                case PerkHighlighter.SkillMatchVisual.SoftCyan:
-                    PerkQOLSkillNameColor = SoftCyanColor;
-                    break;
-                case PerkHighlighter.SkillMatchVisual.PaleGold:
-                    PerkQOLSkillNameColor = PaleGoldColor;
-                    break;
-                case PerkHighlighter.SkillMatchVisual.SelectionAware:
-                    PerkQOLSkillNameColor = ViewModel != null && ViewModel.IsInspected
-                        ? MatchSelectedColor
-                        : MatchBrightColor;
-                    break;
-                case PerkHighlighter.SkillMatchVisual.GoldOutline:
-                    PerkQOLSkillNameColor = GoldColor;
-                    break;
-                default:
-                    PerkQOLSkillNameColor = WhiteColor;
-                    break;
-            }
+            PerkQOLSkillNameText = matched ? baseName + ", " + matchCount + ", " + maxRequirement : baseName;
+            PerkQOLSkillNameColor = matched ? MatchColor : NormalColor;
         }
 
         [DataSourceProperty]
@@ -1730,38 +1603,6 @@ namespace PerkQOL
         }
 
         [DataSourceProperty]
-        public string PerkQOLSkillBaseName
-        {
-            get => _baseName;
-            set
-            {
-                if (value == _baseName)
-                {
-                    return;
-                }
-
-                _baseName = value ?? "";
-                OnPropertyChangedWithValue(_baseName);
-            }
-        }
-
-        [DataSourceProperty]
-        public string PerkQOLSkillMatchSuffix
-        {
-            get => _matchSuffix;
-            set
-            {
-                if (value == _matchSuffix)
-                {
-                    return;
-                }
-
-                _matchSuffix = value ?? "";
-                OnPropertyChangedWithValue(_matchSuffix);
-            }
-        }
-
-        [DataSourceProperty]
         public bool IsPerkQOLSkillMatched
         {
             get => _matched;
@@ -1776,66 +1617,11 @@ namespace PerkQOL
                 OnPropertyChangedWithValue(value);
             }
         }
-
-        [DataSourceProperty]
-        public bool IsPerkQOLSkillStyleSuffix
-        {
-            get => _styleSuffix;
-            set
-            {
-                if (value == _styleSuffix)
-                {
-                    return;
-                }
-
-                _styleSuffix = value;
-                OnPropertyChangedWithValue(value);
-            }
-        }
-
-        [DataSourceProperty]
-        public bool IsPerkQOLSkillStyleSelect
-        {
-            get => _styleSelect;
-            set
-            {
-                if (value == _styleSelect)
-                {
-                    return;
-                }
-
-                _styleSelect = value;
-                OnPropertyChangedWithValue(value);
-            }
-        }
-
-        [DataSourceProperty]
-        public bool IsPerkQOLSkillStyleGold
-        {
-            get => _styleGold;
-            set
-            {
-                if (value == _styleGold)
-                {
-                    return;
-                }
-
-                _styleGold = value;
-                OnPropertyChangedWithValue(value);
-            }
-        }
     }
 
     /// <summary>SkillVM.RefreshValues runs on character switches and after the grid rebinds, which would otherwise leave the name on the brush default.</summary>
     [HarmonyPatch(typeof(SkillVM), nameof(SkillVM.RefreshValues))]
     internal static class SkillNameColorRefreshPatch
-    {
-        private static void Postfix(SkillVM __instance) => PerkHighlighter.RefreshSkill(__instance.Skill);
-    }
-
-    /// <summary>Selection-aware name colors need a refresh when the inspected skill card changes.</summary>
-    [HarmonyPatch(typeof(SkillVM), nameof(SkillVM.IsInspected), MethodType.Setter)]
-    internal static class SkillInspectedRefreshPatch
     {
         private static void Postfix(SkillVM __instance) => PerkHighlighter.RefreshSkill(__instance.Skill);
     }
@@ -2064,7 +1850,7 @@ namespace PerkQOL
 </Widget>";
     }
 
-    /// <summary>Replaces the skill name so its font color comes from the skill view-model.</summary>
+    /// <summary>Replaces the skill name so matches use gold text with a dark drop-shadow outline.</summary>
     [PrefabExtension("SkillGridItem", "descendant::TextWidget[@Text='@NameText']")]
     public sealed class PerkHighlightSkillNamePatch : PrefabExtensionInsertPatch
     {
@@ -2074,25 +1860,9 @@ namespace PerkQOL
 
         public PerkHighlightSkillNamePatch()
         {
-            // Three temporary match styles for side-by-side comparison (left / middle / right skill columns).
             _document.LoadXml(
                 "<Widget WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"Fixed\" SuggestedHeight=\"!NameText.Height\" " +
                 "VerticalAlignment=\"Top\" MarginLeft=\"10\" DoNotAcceptEvents=\"true\">" +
-                "<Children>" +
-                "<ListPanel IsVisible=\"@IsPerkQOLSkillStyleSuffix\" WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"StretchToParent\" " +
-                "StackLayout.LayoutMethod=\"HorizontalLeftToRight\" DoNotAcceptEvents=\"true\">" +
-                "<Children>" +
-                "<TextWidget WidthSizePolicy=\"CoverChildren\" HeightSizePolicy=\"StretchToParent\" Brush=\"CharacterDeveloper.GridSkillName.Text\" " +
-                "Brush.FontColor=\"#FDF1DFFF\" IsEnabled=\"@CanLearnSkill\" Text=\"@PerkQOLSkillBaseName\" DoNotAcceptEvents=\"true\" />" +
-                "<TextWidget IsVisible=\"@IsPerkQOLSkillMatched\" WidthSizePolicy=\"CoverChildren\" HeightSizePolicy=\"StretchToParent\" " +
-                "Brush=\"CharacterDeveloper.GridSkillName.Text\" Brush.FontColor=\"#FF4D4DFF\" IsEnabled=\"@CanLearnSkill\" " +
-                "Text=\"@PerkQOLSkillMatchSuffix\" DoNotAcceptEvents=\"true\" />" +
-                "</Children>" +
-                "</ListPanel>" +
-                "<TextWidget IsVisible=\"@IsPerkQOLSkillStyleSelect\" WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"StretchToParent\" " +
-                "Brush=\"CharacterDeveloper.GridSkillName.Text\" Brush.FontColor=\"@PerkQOLSkillNameColor\" IsEnabled=\"@CanLearnSkill\" " +
-                "Text=\"@PerkQOLSkillNameText\" DoNotAcceptEvents=\"true\" />" +
-                "<Widget IsVisible=\"@IsPerkQOLSkillStyleGold\" WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"StretchToParent\" DoNotAcceptEvents=\"true\">" +
                 "<Children>" +
                 "<TextWidget IsVisible=\"@IsPerkQOLSkillMatched\" WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"StretchToParent\" " +
                 "PositionXOffset=\"1\" PositionYOffset=\"1\" Brush=\"CharacterDeveloper.GridSkillName.Text\" Brush.FontColor=\"#1A120CFF\" " +
@@ -2101,14 +1871,11 @@ namespace PerkQOL
                 "Brush=\"CharacterDeveloper.GridSkillName.Text\" Brush.FontColor=\"@PerkQOLSkillNameColor\" IsEnabled=\"@CanLearnSkill\" " +
                 "Text=\"@PerkQOLSkillNameText\" DoNotAcceptEvents=\"true\" />" +
                 "</Children>" +
-                "</Widget>" +
-                "</Children>" +
                 "</Widget>");
         }
 
         [PrefabExtensionXmlNode]
         public XmlNode Node => _document.DocumentElement;
     }
-
 }
 
