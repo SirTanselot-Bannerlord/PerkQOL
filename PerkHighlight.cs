@@ -678,8 +678,8 @@ namespace PerkQOL
         /// </summary>
         internal enum SkillMatchVisual
         {
-            /// <summary>Cream skill name; only ", X, Y" is tinted red.</summary>
-            SuffixTint = 0,
+            /// <summary>Full name (including ", X, Y") in white when matched.</summary>
+            White = 0,
             /// <summary>Full name tinted; darker when the skill card is selected.</summary>
             SelectionAware = 1,
             /// <summary>Gold name with a dark drop-shadow outline.</summary>
@@ -707,7 +707,7 @@ namespace PerkQOL
             string id = skill?.StringId ?? "";
             if (SuffixTintSkillIds.Contains(id))
             {
-                return SkillMatchVisual.SuffixTint;
+                return SkillMatchVisual.White;
             }
 
             if (SelectionAwareSkillIds.Contains(id))
@@ -1592,6 +1592,7 @@ namespace PerkQOL
     {
         // Color.FromUint is AARRGGBB. The skill-name brush is #FDF1DFFF.
         private static readonly Color NormalColor = Color.FromUint(0xFFFDF1DFu);
+        private static readonly Color WhiteColor = Color.FromUint(0xFFFFFFFFu);
         private static readonly Color MatchBrightColor = Color.FromUint(0xFFFF5C4Cu);
         private static readonly Color MatchSelectedColor = Color.FromUint(0xFF5C1A12u);
         private static readonly Color GoldColor = Color.FromUint(0xFFFFC45Au);
@@ -1628,8 +1629,10 @@ namespace PerkQOL
             }
 
             PerkHighlighter.SkillMatchVisual visual = PerkHighlighter.MatchVisualOf(_skill);
-            IsPerkQOLSkillStyleSuffix = visual == PerkHighlighter.SkillMatchVisual.SuffixTint;
-            IsPerkQOLSkillStyleSelect = visual == PerkHighlighter.SkillMatchVisual.SelectionAware;
+            // White and selection-aware both use the single full-name TextWidget.
+            IsPerkQOLSkillStyleSuffix = false;
+            IsPerkQOLSkillStyleSelect = visual == PerkHighlighter.SkillMatchVisual.White
+                || visual == PerkHighlighter.SkillMatchVisual.SelectionAware;
             IsPerkQOLSkillStyleGold = visual == PerkHighlighter.SkillMatchVisual.GoldOutline;
 
             bool matched = PerkHighlighter.TryGetSkillMatchStats(_skill, out int matchCount, out int maxRequirement);
@@ -1646,6 +1649,9 @@ namespace PerkQOL
 
             switch (visual)
             {
+                case PerkHighlighter.SkillMatchVisual.White:
+                    PerkQOLSkillNameColor = WhiteColor;
+                    break;
                 case PerkHighlighter.SkillMatchVisual.SelectionAware:
                     PerkQOLSkillNameColor = ViewModel != null && ViewModel.IsInspected
                         ? MatchSelectedColor
@@ -1655,8 +1661,7 @@ namespace PerkQOL
                     PerkQOLSkillNameColor = GoldColor;
                     break;
                 default:
-                    // SuffixTint paints the suffix in the prefab; keep the name cream.
-                    PerkQOLSkillNameColor = NormalColor;
+                    PerkQOLSkillNameColor = WhiteColor;
                     break;
             }
         }
