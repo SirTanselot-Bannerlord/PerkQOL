@@ -188,19 +188,19 @@ namespace PerkQOL
             {
                 new CaptainFlagOption(
                     new TextObject("{=PQOL_FF_OnFoot}On foot"),
-                    new TextObject("{=PQOL_FH_OnFoot}Unticked: hide captain perks for foot troops."),
+                    new TextObject("{=PQOL_FH_OnFoot}Unticked: Hide captain perks that only apply to on-foot troops."),
                     TroopUsageFlags.OnFoot),
                 new CaptainFlagOption(
                     new TextObject("{=PQOL_FF_Mounted}Mounted"),
-                    new TextObject("{=PQOL_FH_Mounted}Unticked: hide captain perks for mounted troops."),
+                    new TextObject("{=PQOL_FH_Mounted}Unticked: Hide captain perks that only apply to mounted troops."),
                     TroopUsageFlags.Mounted),
                 new CaptainFlagOption(
                     new TextObject("{=PQOL_FF_Melee}Melee"),
-                    new TextObject("{=PQOL_FH_Melee}Unticked: hide captain perks for melee troops."),
+                    new TextObject("{=PQOL_FH_Melee}Unticked: Hide captain perks that only apply to melee troops."),
                     TroopUsageFlags.Melee),
                 new CaptainFlagOption(
                     new TextObject("{=PQOL_FF_Ranged}Ranged"),
-                    new TextObject("{=PQOL_FH_Ranged}Unticked: hide captain perks for ranged troops."),
+                    new TextObject("{=PQOL_FH_Ranged}Unticked: Hide captain perks that only apply to ranged troops."),
                     TroopUsageFlags.Ranged),
             };
 
@@ -208,45 +208,45 @@ namespace PerkQOL
             {
                 options.Add(new CaptainFlagOption(
                     new TextObject("{=PQOL_FF_Land}Land"),
-                    new TextObject("{=PQOL_FH_Land}Unticked: hide captain perks that only apply in land battles."),
+                    new TextObject("{=PQOL_FH_Land}Unticked: Hide captain perks that only apply in land battles."),
                     LandBit));
                 options.Add(new CaptainFlagOption(
                     new TextObject("{=PQOL_FF_Naval}Naval"),
-                    new TextObject("{=PQOL_FH_Naval}Unticked: hide captain perks that only apply in naval battles."),
+                    new TextObject("{=PQOL_FH_Naval}Unticked: Hide captain perks that only apply in naval battles."),
                     NavalBit));
             }
 
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_OneHanded}1-Handed"),
-                new TextObject("{=PQOL_FH_OneHanded}Unticked: hide captain perks for one-handed troops."),
+                new TextObject("{=PQOL_FH_OneHanded}Unticked: Hide captain perks that only apply to troops holding one-handed weapons."),
                 TroopUsageFlags.OneHandedUser));
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Bow}Bow"),
-                new TextObject("{=PQOL_FH_Bow}Unticked: hide captain perks for bow troops."),
+                new TextObject("{=PQOL_FH_Bow}Unticked: Hide captain perks that only apply to troops holding bows."),
                 TroopUsageFlags.BowUser));
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_TwoHanded}2-Handed"),
-                new TextObject("{=PQOL_FH_TwoHanded}Unticked: hide captain perks for two-handed troops."),
+                new TextObject("{=PQOL_FH_TwoHanded}Unticked: Hide captain perks that only apply to troops holding two-handed weapons."),
                 TroopUsageFlags.TwoHandedUser));
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Thrown}Thrown"),
-                new TextObject("{=PQOL_FH_Thrown}Unticked: hide captain perks for thrown-weapon troops."),
+                new TextObject("{=PQOL_FH_Thrown}Unticked: Hide captain perks that only apply to troops holding thrown weapons."),
                 TroopUsageFlags.ThrownUser));
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Polearm}Polearm"),
-                new TextObject("{=PQOL_FH_Polearm}Unticked: hide captain perks for polearm troops."),
+                new TextObject("{=PQOL_FH_Polearm}Unticked: Hide captain perks that only apply to troops holding polearms."),
                 TroopUsageFlags.PolearmUser));
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Crossbow}Crossbow"),
-                new TextObject("{=PQOL_FH_Crossbow}Unticked: hide captain perks for crossbow troops."),
+                new TextObject("{=PQOL_FH_Crossbow}Unticked: Hide captain perks that only apply to troops holding crossbows."),
                 TroopUsageFlags.CrossbowUser));
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Shield}Shield"),
-                new TextObject("{=PQOL_FH_Shield}Unticked: hide captain perks for shield troops."),
+                new TextObject("{=PQOL_FH_Shield}Unticked: Hide captain perks that only apply to troops holding shields."),
                 TroopUsageFlags.ShieldUser));
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Generic}Generic"),
-                new TextObject("{=PQOL_FH_Generic}Unticked: hide untagged captain perks (no troop type; apply broadly)."),
+                new TextObject("{=PQOL_FH_Generic}Unticked: Hide captain perks that generically apply to all troops."),
                 TroopUsageFlags.None,
                 true));
             return options.ToArray();
