@@ -680,84 +680,6 @@ namespace PerkQOL
             TryGetSkillMatchStats(skill, out _, out _);
 
         /// <summary>
-        /// Temporary skill-name match styles for comparison. Italic is faked with a slant — this font family has no italic face.
-        /// </summary>
-        internal enum SkillMatchVisual
-        {
-            WhiteUnderline = 0,
-            WhiteBold = 1,
-            WhiteItalic = 2,
-            SoftBlue = 3,
-            Teal = 4,
-            SkyBlue = 5,
-            Cyan = 6,
-            OrangeBlackBorder = 7,
-        }
-
-        private const int SkillMatchVisualCount = 8;
-
-        private static readonly HashSet<string> WhiteUnderlineSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "OneHanded", "Riding", "Mariner",
-        };
-
-        private static readonly HashSet<string> WhiteBoldSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Bow", "Scouting", "Steward",
-        };
-
-        private static readonly HashSet<string> WhiteItalicSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Charm",
-        };
-
-        private static readonly HashSet<string> SoftBlueSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "TwoHanded", "Athletics", "Medicine",
-        };
-
-        private static readonly HashSet<string> TealSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Crossbow", "Tactics", "Boatswain",
-        };
-
-        private static readonly HashSet<string> SkyBlueSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Leadership", "Polearm", "Trade",
-        };
-
-        private static readonly HashSet<string> CyanSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Crafting", "Shipmaster",
-        };
-
-        private static readonly HashSet<string> OrangeBlackBorderSkillIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Throwing", "Roguery", "Engineering",
-        };
-
-        internal static SkillMatchVisual MatchVisualOf(SkillObject skill)
-        {
-            string id = skill?.StringId ?? "";
-            if (WhiteUnderlineSkillIds.Contains(id)) return SkillMatchVisual.WhiteUnderline;
-            if (WhiteBoldSkillIds.Contains(id)) return SkillMatchVisual.WhiteBold;
-            if (WhiteItalicSkillIds.Contains(id)) return SkillMatchVisual.WhiteItalic;
-            if (SoftBlueSkillIds.Contains(id)) return SkillMatchVisual.SoftBlue;
-            if (TealSkillIds.Contains(id)) return SkillMatchVisual.Teal;
-            if (SkyBlueSkillIds.Contains(id)) return SkillMatchVisual.SkyBlue;
-            if (CyanSkillIds.Contains(id)) return SkillMatchVisual.Cyan;
-            if (OrangeBlackBorderSkillIds.Contains(id)) return SkillMatchVisual.OrangeBlackBorder;
-
-            int hash = 0;
-            foreach (char c in id)
-            {
-                hash = (hash * 33) ^ c;
-            }
-
-            return (SkillMatchVisual)(Math.Abs(hash) % SkillMatchVisualCount);
-        }
-
-        /// <summary>
         /// Matching perks for a skill under the current role/search filter: count and highest required skill level.
         /// </summary>
         internal static bool TryGetSkillMatchStats(SkillObject skill, out int matchCount, out int maxRequirement)
@@ -1629,26 +1551,13 @@ namespace PerkQOL
     [ViewModelMixin("RefreshValues")]
     public sealed class PerkHighlightSkillMixin : BaseViewModelMixin<SkillVM>
     {
-        // Color.FromUint is AARRGGBB. The skill-name brush is #FDF1DFFF.
+        // Color.FromUint is AARRGGBB. Default brush is cream #FDF1DF; matches use cyan so they stand out from gold UI chrome.
         private static readonly Color NormalColor = Color.FromUint(0xFFFDF1DFu);
-        private static readonly Color BrightWhiteColor = Color.FromUint(0xFFFFFFFFu);
-        private static readonly Color SoftBlueColor = Color.FromUint(0xFFA8D4FFu);
-        private static readonly Color TealColor = Color.FromUint(0xFF7FDBDAu);
-        private static readonly Color SkyBlueColor = Color.FromUint(0xFF6BB3FFu);
-        private static readonly Color CyanColor = Color.FromUint(0xFF5EEAD4u);
-        private static readonly Color OrangeColor = Color.FromUint(0xFFFF8C42u);
-        private static readonly Color BlackBorderColor = Color.FromUint(0xFF1A120Cu);
+        private static readonly Color MatchColor = Color.FromUint(0xFF5EEAD4u);
 
         private readonly SkillObject _skill;
         private Color _nameColor = NormalColor;
-        private Color _outlineColor = BlackBorderColor;
         private string _nameText = "";
-        private bool _matched;
-        private bool _underline;
-        private bool _bold;
-        private bool _italic;
-        private bool _outline;
-        private bool _styled;
 
         public PerkHighlightSkillMixin(SkillVM vm) : base(vm)
         {
@@ -1671,60 +1580,16 @@ namespace PerkQOL
                 baseName = _skill?.Name?.ToString() ?? "";
             }
 
-            bool matched = PerkHighlighter.TryGetSkillMatchStats(_skill, out int matchCount, out int maxRequirement);
-            IsPerkQOLSkillMatched = matched;
-            PerkQOLSkillNameText = matched ? baseName + ", " + matchCount + ", " + maxRequirement : baseName;
-
-            if (!matched)
+            if (PerkHighlighter.TryGetSkillMatchStats(_skill, out int matchCount, out int maxRequirement))
             {
+                PerkQOLSkillNameText = baseName + ", " + matchCount + ", " + maxRequirement;
+                PerkQOLSkillNameColor = MatchColor;
+            }
+            else
+            {
+                PerkQOLSkillNameText = baseName;
                 PerkQOLSkillNameColor = NormalColor;
-                IsPerkQOLSkillUnderline = false;
-                IsPerkQOLSkillBold = false;
-                IsPerkQOLSkillItalic = false;
-                IsPerkQOLSkillOutline = false;
-                IsPerkQOLSkillStyled = false;
-                return;
             }
-
-            IsPerkQOLSkillUnderline = false;
-            IsPerkQOLSkillBold = false;
-            IsPerkQOLSkillItalic = false;
-            IsPerkQOLSkillOutline = false;
-
-            switch (PerkHighlighter.MatchVisualOf(_skill))
-            {
-                case PerkHighlighter.SkillMatchVisual.WhiteUnderline:
-                    PerkQOLSkillNameColor = BrightWhiteColor;
-                    IsPerkQOLSkillUnderline = true;
-                    break;
-                case PerkHighlighter.SkillMatchVisual.WhiteBold:
-                    PerkQOLSkillNameColor = BrightWhiteColor;
-                    IsPerkQOLSkillBold = true;
-                    break;
-                case PerkHighlighter.SkillMatchVisual.WhiteItalic:
-                    PerkQOLSkillNameColor = BrightWhiteColor;
-                    IsPerkQOLSkillItalic = true;
-                    break;
-                case PerkHighlighter.SkillMatchVisual.SoftBlue:
-                    PerkQOLSkillNameColor = SoftBlueColor;
-                    break;
-                case PerkHighlighter.SkillMatchVisual.Teal:
-                    PerkQOLSkillNameColor = TealColor;
-                    break;
-                case PerkHighlighter.SkillMatchVisual.SkyBlue:
-                    PerkQOLSkillNameColor = SkyBlueColor;
-                    break;
-                case PerkHighlighter.SkillMatchVisual.Cyan:
-                    PerkQOLSkillNameColor = CyanColor;
-                    break;
-                default:
-                    PerkQOLSkillNameColor = OrangeColor;
-                    PerkQOLSkillOutlineColor = BlackBorderColor;
-                    IsPerkQOLSkillOutline = true;
-                    break;
-            }
-
-            IsPerkQOLSkillStyled = IsPerkQOLSkillBold || IsPerkQOLSkillItalic;
         }
 
         [DataSourceProperty]
@@ -1744,22 +1609,6 @@ namespace PerkQOL
         }
 
         [DataSourceProperty]
-        public Color PerkQOLSkillOutlineColor
-        {
-            get => _outlineColor;
-            set
-            {
-                if (_outlineColor.ToUnsignedInteger() == value.ToUnsignedInteger())
-                {
-                    return;
-                }
-
-                _outlineColor = value;
-                OnPropertyChangedWithValue(value);
-            }
-        }
-
-        [DataSourceProperty]
         public string PerkQOLSkillNameText
         {
             get => _nameText;
@@ -1772,103 +1621,6 @@ namespace PerkQOL
 
                 _nameText = value ?? "";
                 OnPropertyChangedWithValue(_nameText);
-            }
-        }
-
-        [DataSourceProperty]
-        public bool IsPerkQOLSkillMatched
-        {
-            get => _matched;
-            set
-            {
-                if (value == _matched)
-                {
-                    return;
-                }
-
-                _matched = value;
-                OnPropertyChangedWithValue(value);
-            }
-        }
-
-        [DataSourceProperty]
-        public bool IsPerkQOLSkillUnderline
-        {
-            get => _underline;
-            set
-            {
-                if (value == _underline)
-                {
-                    return;
-                }
-
-                _underline = value;
-                OnPropertyChangedWithValue(value);
-            }
-        }
-
-        [DataSourceProperty]
-        public bool IsPerkQOLSkillBold
-        {
-            get => _bold;
-            set
-            {
-                if (value == _bold)
-                {
-                    return;
-                }
-
-                _bold = value;
-                OnPropertyChangedWithValue(value);
-            }
-        }
-
-        [DataSourceProperty]
-        public bool IsPerkQOLSkillItalic
-        {
-            get => _italic;
-            set
-            {
-                if (value == _italic)
-                {
-                    return;
-                }
-
-                _italic = value;
-                OnPropertyChangedWithValue(value);
-            }
-        }
-
-        [DataSourceProperty]
-        public bool IsPerkQOLSkillOutline
-        {
-            get => _outline;
-            set
-            {
-                if (value == _outline)
-                {
-                    return;
-                }
-
-                _outline = value;
-                OnPropertyChangedWithValue(value);
-            }
-        }
-
-        /// <summary>True when the plain name TextWidget should hide (bold/italic replacement is showing).</summary>
-        [DataSourceProperty]
-        public bool IsPerkQOLSkillStyled
-        {
-            get => _styled;
-            set
-            {
-                if (value == _styled)
-                {
-                    return;
-                }
-
-                _styled = value;
-                OnPropertyChangedWithValue(value);
             }
         }
     }
@@ -2104,7 +1856,7 @@ namespace PerkQOL
 </Widget>";
     }
 
-    /// <summary>Replaces the skill name; match styling is chosen per skill for A/B comparison.</summary>
+    /// <summary>Replaces the skill name so matches use cyan text (and append match count / max level).</summary>
     [PrefabExtension("SkillGridItem", "descendant::TextWidget[@Text='@NameText']")]
     public sealed class PerkHighlightSkillNamePatch : PrefabExtensionInsertPatch
     {
@@ -2114,31 +1866,10 @@ namespace PerkQOL
 
         public PerkHighlightSkillNamePatch()
         {
-            // Bold = Medium face (no Bold in this family). Italic = slight slant (no italic face either).
             _document.LoadXml(
-                "<ListPanel WidthSizePolicy=\"CoverChildren\" HeightSizePolicy=\"Fixed\" SuggestedHeight=\"!NameText.Height\" " +
-                "VerticalAlignment=\"Top\" MarginLeft=\"10\" StackLayout.LayoutMethod=\"VerticalTopToBottom\" DoNotAcceptEvents=\"true\">" +
-                "<Children>" +
-                "<Widget WidthSizePolicy=\"CoverChildren\" HeightSizePolicy=\"StretchToParent\" DoNotAcceptEvents=\"true\">" +
-                "<Children>" +
-                "<TextWidget IsVisible=\"@IsPerkQOLSkillOutline\" WidthSizePolicy=\"CoverChildren\" HeightSizePolicy=\"StretchToParent\" " +
-                "PositionXOffset=\"1\" PositionYOffset=\"1\" Brush=\"CharacterDeveloper.GridSkillName.Text\" " +
-                "Brush.FontColor=\"@PerkQOLSkillOutlineColor\" IsEnabled=\"@CanLearnSkill\" Text=\"@PerkQOLSkillNameText\" DoNotAcceptEvents=\"true\" />" +
-                "<TextWidget IsVisible=\"@IsPerkQOLSkillBold\" WidthSizePolicy=\"CoverChildren\" HeightSizePolicy=\"StretchToParent\" " +
-                "Brush=\"CharacterDeveloper.GridSkillName.Text\" Brush.Font=\"FiraSansExtraCondensed-Medium\" " +
-                "Brush.FontColor=\"@PerkQOLSkillNameColor\" IsEnabled=\"@CanLearnSkill\" Text=\"@PerkQOLSkillNameText\" DoNotAcceptEvents=\"true\" />" +
-                "<TextWidget IsVisible=\"@IsPerkQOLSkillItalic\" WidthSizePolicy=\"CoverChildren\" HeightSizePolicy=\"StretchToParent\" " +
-                "Brush=\"CharacterDeveloper.GridSkillName.Text\" Brush.FontColor=\"@PerkQOLSkillNameColor\" " +
-                "Rotation=\"-12\" PivotX=\"0\" PivotY=\"0.5\" IsEnabled=\"@CanLearnSkill\" Text=\"@PerkQOLSkillNameText\" DoNotAcceptEvents=\"true\" />" +
-                "<TextWidget IsHidden=\"@IsPerkQOLSkillStyled\" WidthSizePolicy=\"CoverChildren\" HeightSizePolicy=\"StretchToParent\" " +
-                "Brush=\"CharacterDeveloper.GridSkillName.Text\" Brush.FontColor=\"@PerkQOLSkillNameColor\" IsEnabled=\"@CanLearnSkill\" " +
-                "Text=\"@PerkQOLSkillNameText\" DoNotAcceptEvents=\"true\" />" +
-                "</Children>" +
-                "</Widget>" +
-                "<Widget IsVisible=\"@IsPerkQOLSkillUnderline\" WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"Fixed\" " +
-                "SuggestedHeight=\"2\" MarginTop=\"1\" Sprite=\"BlankWhiteSquare_9\" Color=\"@PerkQOLSkillNameColor\" DoNotAcceptEvents=\"true\" />" +
-                "</Children>" +
-                "</ListPanel>");
+                "<TextWidget WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"Fixed\" SuggestedHeight=\"!NameText.Height\" " +
+                "VerticalAlignment=\"Top\" MarginLeft=\"10\" Brush=\"CharacterDeveloper.GridSkillName.Text\" " +
+                "Brush.FontColor=\"@PerkQOLSkillNameColor\" IsEnabled=\"@CanLearnSkill\" Text=\"@PerkQOLSkillNameText\" DoNotAcceptEvents=\"true\" />");
         }
 
         [PrefabExtensionXmlNode]
