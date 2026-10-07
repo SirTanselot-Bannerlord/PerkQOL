@@ -670,8 +670,16 @@ namespace PerkQOL
             return searchActive ? search : role;
         }
 
-        internal static bool SkillHasMatch(SkillObject skill)
+        internal static bool SkillHasMatch(SkillObject skill) =>
+            TryGetSkillMatchStats(skill, out _, out _);
+
+        /// <summary>
+        /// Matching perks for a skill under the current role/search filter: count and highest required skill level.
+        /// </summary>
+        internal static bool TryGetSkillMatchStats(SkillObject skill, out int matchCount, out int maxRequirement)
         {
+            matchCount = 0;
+            maxRequirement = 0;
             if (skill == null || (Selected.Count == 0 && !HasActiveSearch()))
             {
                 return false;
@@ -679,13 +687,20 @@ namespace PerkQOL
 
             foreach (PerkObject perk in PerkObject.All)
             {
-                if (perk.Skill == skill && PerkIsHighlighted(perk, out _))
+                if (perk.Skill != skill || !PerkIsHighlighted(perk, out _))
                 {
-                    return true;
+                    continue;
+                }
+
+                matchCount++;
+                int required = (int)perk.RequiredSkillValue;
+                if (required > maxRequirement)
+                {
+                    maxRequirement = required;
                 }
             }
 
-            return false;
+            return matchCount > 0;
         }
 
         private static bool HasActiveSearch()
@@ -1525,6 +1540,7 @@ namespace PerkQOL
 
         private readonly SkillObject _skill;
         private Color _nameColor = NormalColor;
+        private string _nameText = "";
 
         public PerkHighlightSkillMixin(SkillVM vm) : base(vm)
         {
@@ -1541,7 +1557,22 @@ namespace PerkQOL
 
         private void Apply()
         {
-            PerkQOLSkillNameColor = PerkHighlighter.SkillHasMatch(_skill) ? MatchColor : NormalColor;
+            string baseName = ViewModel?.NameText;
+            if (string.IsNullOrEmpty(baseName))
+            {
+                baseName = _skill?.Name?.ToString() ?? "";
+            }
+
+            if (PerkHighlighter.TryGetSkillMatchStats(_skill, out int matchCount, out int maxRequirement))
+            {
+                PerkQOLSkillNameColor = MatchColor;
+                PerkQOLSkillNameText = baseName + ", " + matchCount + ", " + maxRequirement;
+            }
+            else
+            {
+                PerkQOLSkillNameColor = NormalColor;
+                PerkQOLSkillNameText = baseName;
+            }
         }
 
         [DataSourceProperty]
@@ -1557,6 +1588,22 @@ namespace PerkQOL
 
                 _nameColor = value;
                 OnPropertyChangedWithValue(value);
+            }
+        }
+
+        [DataSourceProperty]
+        public string PerkQOLSkillNameText
+        {
+            get => _nameText;
+            set
+            {
+                if (value == _nameText)
+                {
+                    return;
+                }
+
+                _nameText = value ?? "";
+                OnPropertyChangedWithValue(_nameText);
             }
         }
     }
@@ -1805,7 +1852,7 @@ namespace PerkQOL
             _document.LoadXml(
                 "<TextWidget WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"Fixed\" SuggestedHeight=\"!NameText.Height\" " +
                 "VerticalAlignment=\"Top\" MarginLeft=\"10\" Brush=\"CharacterDeveloper.GridSkillName.Text\" " +
-                "Brush.FontColor=\"@PerkQOLSkillNameColor\" IsEnabled=\"@CanLearnSkill\" Text=\"@NameText\" DoNotAcceptEvents=\"true\" />");
+                "Brush.FontColor=\"@PerkQOLSkillNameColor\" IsEnabled=\"@CanLearnSkill\" Text=\"@PerkQOLSkillNameText\" DoNotAcceptEvents=\"true\" />");
         }
 
         [PrefabExtensionXmlNode]
