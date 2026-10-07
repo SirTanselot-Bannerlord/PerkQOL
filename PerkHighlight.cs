@@ -179,6 +179,11 @@ namespace PerkQOL
         private static bool _includeUntagged = true;
         private static string _searchText = "";
         private static WeakReference<PerkHighlightScreenMixin> _screen;
+        /// <summary>
+        /// Which profile row the user last picked. Kept when several templates share the same flags so Duplicate
+        /// copies stay selectable instead of always snapping to the first match.
+        /// </summary>
+        private static int _pinnedProfileIndex = (int)CaptainTroopClass.Any;
 
         internal static string NameOf(Mode mode) => Names[mode].ToString();
 
@@ -204,6 +209,20 @@ namespace PerkQOL
         /// <summary>Dropdown index: a preset, a saved template, or <see cref="CustomPresetIndex"/> when the ticks match none.</summary>
         internal static int PresetIndex()
         {
+            if (PinStillValid(_pinnedProfileIndex))
+            {
+                return _pinnedProfileIndex;
+            }
+
+            _pinnedProfileIndex = DerivePresetIndex();
+            return _pinnedProfileIndex;
+        }
+
+        internal static void PinProfile(int filterIndex) => _pinnedProfileIndex = filterIndex;
+
+        /// <summary>First matching preset/template for the current ticks, ignoring the pin.</summary>
+        private static int DerivePresetIndex()
+        {
             if (_includeUntagged && _captainFlags == AllTroopFlags)
             {
                 return (int)CaptainTroopClass.Any;
@@ -228,6 +247,40 @@ namespace PerkQOL
             }
 
             return CustomPresetIndex;
+        }
+
+        private static bool PinStillValid(int index)
+        {
+            if (index < 0)
+            {
+                return false;
+            }
+
+            if (index < CustomPresetIndex)
+            {
+                return FlagsMatchPreset((CaptainTroopClass)index);
+            }
+
+            if (index == CustomPresetIndex)
+            {
+                return DerivePresetIndex() == CustomPresetIndex;
+            }
+
+            CaptainTemplate template = CaptainTemplates.Get(index - TemplateIndexBase);
+            return template != null
+                && template.Generic == _includeUntagged
+                && (TroopUsageFlags)template.Flags == _captainFlags;
+        }
+
+        private static bool FlagsMatchPreset(CaptainTroopClass troopClass)
+        {
+            if (troopClass == CaptainTroopClass.Any)
+            {
+                return _includeUntagged && _captainFlags == AllTroopFlags;
+            }
+
+            return _includeUntagged == Settings.Current.CaptainPresetsIncludeGeneric
+                && _captainFlags == FormationFlagsOf(troopClass);
         }
 
         internal static string SelectedTemplateName()
@@ -269,8 +322,10 @@ namespace PerkQOL
         {
             TroopUsageFlags flags = troopClass == CaptainTroopClass.Any ? AllTroopFlags : FormationFlagsOf(troopClass);
             bool generic = troopClass == CaptainTroopClass.Any || Settings.Current.CaptainPresetsIncludeGeneric;
+            _pinnedProfileIndex = (int)troopClass;
             if (flags == _captainFlags && generic == _includeUntagged)
             {
+                NotifyScreen();
                 return;
             }
 
@@ -289,9 +344,11 @@ namespace PerkQOL
                 return false;
             }
 
+            _pinnedProfileIndex = TemplateIndexBase + templateIndex;
             TroopUsageFlags flags = (TroopUsageFlags)template.Flags;
             if (flags == _captainFlags && template.Generic == _includeUntagged)
             {
+                NotifyScreen();
                 return true;
             }
 
@@ -956,6 +1013,7 @@ namespace PerkQOL
                 return;
             }
 
+            PinTemplateByName(PerkQOLTemplateName);
             ReloadTemplateDropdown();
         }
 
@@ -1013,7 +1071,21 @@ namespace PerkQOL
             }
 
             PerkQOLTemplateName = created;
+            PinTemplateByName(created);
             ReloadTemplateDropdown();
+        }
+
+        private static void PinTemplateByName(string name)
+        {
+            IReadOnlyList<CaptainTemplate> templates = CaptainTemplates.All;
+            for (int i = 0; i < templates.Count; i++)
+            {
+                if (string.Equals(templates[i].Name, name, StringComparison.OrdinalIgnoreCase))
+                {
+                    PerkHighlighter.PinProfile(PerkHighlighter.TemplateIndexBase + i);
+                    return;
+                }
+            }
         }
 
         private static void ShowTemplateMessage(TextObject message) =>
@@ -1043,12 +1115,6 @@ namespace PerkQOL
                     i == selected));
             }
 
-            _captainProfiles.Add(new CaptainProfileVM(
-                new TextObject("{=PQOL_CT_Custom}Custom").ToString(),
-                PerkHighlighter.CustomPresetIndex,
-                OnProfileSelected,
-                selected == PerkHighlighter.CustomPresetIndex));
-
             IReadOnlyList<CaptainTemplate> templates = CaptainTemplates.All;
             for (int i = 0; i < templates.Count; i++)
             {
@@ -1065,13 +1131,6 @@ namespace PerkQOL
 
         private void OnProfileSelected(CaptainProfileVM profile)
         {
-            if (profile.FilterIndex == PerkHighlighter.CustomPresetIndex)
-            {
-                // Custom is the working set; selection follows flag edits, not a click.
-                SyncProfileSelection();
-                return;
-            }
-
             if (profile.FilterIndex < PerkHighlighter.CustomPresetIndex)
             {
                 PerkHighlighter.ApplyPreset((PerkHighlighter.CaptainTroopClass)profile.FilterIndex);
@@ -1116,7 +1175,7 @@ namespace PerkQOL
 
             SyncDropdown();
             SyncTemplateName();
-            if (_captainProfiles.Count != PerkHighlighter.CustomPresetIndex + 1 + CaptainTemplates.All.Count)
+            if (_captainProfiles.Count != PerkHighlighter.CustomPresetIndex + CaptainTemplates.All.Count)
             {
                 RebuildProfiles();
             }
