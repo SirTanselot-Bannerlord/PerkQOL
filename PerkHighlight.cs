@@ -1723,7 +1723,7 @@ namespace PerkQOL
                 </ListPanel>
               </Children>
             </DropdownWidget>
-            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""30"" SuggestedHeight=""30"" VerticalAlignment=""Center"" MarginLeft=""6"" Command.Click=""ExecuteTogglePerkQOLFlagMenu"" Brush=""PerkQOL.CaptainFlags.Button"" UpdateChildrenStates=""true"" />
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""36"" SuggestedHeight=""36"" VerticalAlignment=""Center"" MarginLeft=""2"" Command.Click=""ExecuteTogglePerkQOLFlagMenu"" Brush=""PerkQOL.CaptainFlags.Button"" UpdateChildrenStates=""true"" />
           </Children>
         </ListPanel>
       </Children>
