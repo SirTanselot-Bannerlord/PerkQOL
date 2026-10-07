@@ -984,8 +984,7 @@ namespace PerkQOL
             _onToggled = onToggled;
             _isSelected = selected;
             Name = option.Name.ToString();
-            string hint = option.Hint.ToString();
-            Hint = new BasicTooltipViewModel(() => hint);
+            Hint = new HintViewModel(option.Hint);
         }
 
         internal PerkHighlighter.CaptainFlagOption Option { get; }
@@ -994,7 +993,7 @@ namespace PerkQOL
         public string Name { get; }
 
         [DataSourceProperty]
-        public BasicTooltipViewModel Hint { get; }
+        public HintViewModel Hint { get; }
 
         [DataSourceProperty]
         public bool IsSelected
@@ -2007,9 +2006,10 @@ namespace PerkQOL
         <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""BlankWhiteSquare_9"" Color=""#000000FF"" AlphaFactor=""0.6"" DoNotAcceptEvents=""true"" />
       </Children>
     </ButtonWidget>
-    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""680"" SuggestedHeight=""520"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"">
+    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""700"" SuggestedHeight=""540"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"">
       <Children>
         <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""StdAssets\Popup\canvas"" />
+        <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""frame_9"" ExtendLeft=""18"" ExtendRight=""18"" ExtendTop=""18"" ExtendBottom=""18"" DoNotAcceptEvents=""true"" />
         <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""36"" MarginTop=""18"" Brush=""SPOptions.GameKeysGroup.Title.Text"" Brush.FontSize=""30"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLFlagWindowTitle"" />
         <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""18"" MarginTop=""58"" MarginLeft=""36"" MarginRight=""36"" Sprite=""StdAssets\Popup\divider"" />
 
@@ -2045,7 +2045,7 @@ namespace PerkQOL
 
         <GridWidget DataSource=""{PerkQOLCaptainFlags}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""360"" MarginLeft=""250"" MarginTop=""86"" DefaultCellWidth=""180"" DefaultCellHeight=""32"" ColumnCount=""2"">
           <ItemTemplate>
-            <HintWidget DataSource=""{Hint}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Command.HoverBegin=""ExecuteBeginHint"" Command.HoverEnd=""ExecuteEndHint"" IsEnabled=""false"">
+            <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"">
               <Children>
                 <ListPanel WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
                   <Children>
@@ -2054,11 +2054,12 @@ namespace PerkQOL
                         <ImageWidget Id=""ToggleIndicator"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""SPOptions.Checkbox.Full.Button"" />
                       </Children>
                     </ButtonWidget>
-                    <TextWidget WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""CoverChildren"" VerticalAlignment=""Center"" MarginLeft=""6"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""20"" Text=""@Name"" />
+                    <TextWidget WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""CoverChildren"" VerticalAlignment=""Center"" MarginLeft=""6"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""20"" Text=""@Name"" DoNotAcceptEvents=""true"" />
                   </Children>
                 </ListPanel>
+                <HintWidget DataSource=""{Hint}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Command.HoverBegin=""ExecuteBeginHint"" Command.HoverEnd=""ExecuteEndHint"" IsDisabled=""true"" />
               </Children>
-            </HintWidget>
+            </Widget>
           </ItemTemplate>
         </GridWidget>
 
@@ -2068,36 +2069,35 @@ namespace PerkQOL
           </Children>
         </BrushWidget>
 
-        <ListPanel WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""Fixed"" SuggestedHeight=""44"" HorizontalAlignment=""Right"" VerticalAlignment=""Bottom"" MarginRight=""20"" MarginBottom=""24"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
+        <ListPanel WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""Fixed"" SuggestedHeight=""52"" HorizontalAlignment=""Right"" VerticalAlignment=""Bottom"" MarginRight=""24"" MarginBottom=""22"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">
           <Children>
-            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""72"" SuggestedHeight=""40"" MarginLeft=""3"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteNewPerkQOLTemplate"" UpdateChildrenStates=""true"">
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""96"" SuggestedHeight=""48"" MarginLeft=""4"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteNewPerkQOLTemplate"" UpdateChildrenStates=""true"">
               <Children>
-                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""4"" MarginRight=""4"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""17"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateNewLabel"" />
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""20"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateNewLabel"" />
               </Children>
             </ButtonWidget>
-            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""72"" SuggestedHeight=""40"" MarginLeft=""3"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteSavePerkQOLTemplate"" UpdateChildrenStates=""true"">
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""96"" SuggestedHeight=""48"" MarginLeft=""4"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteSavePerkQOLTemplate"" UpdateChildrenStates=""true"">
               <Children>
-                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""4"" MarginRight=""4"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""17"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateSaveLabel"" />
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""20"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateSaveLabel"" />
               </Children>
             </ButtonWidget>
-            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""90"" SuggestedHeight=""40"" MarginLeft=""3"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteDuplicatePerkQOLTemplate"" UpdateChildrenStates=""true"">
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""124"" SuggestedHeight=""48"" MarginLeft=""4"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteDuplicatePerkQOLTemplate"" UpdateChildrenStates=""true"">
               <Children>
-                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""4"" MarginRight=""4"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""17"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateDuplicateLabel"" />
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""20"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateDuplicateLabel"" />
               </Children>
             </ButtonWidget>
-            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""72"" SuggestedHeight=""40"" MarginLeft=""3"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteDeletePerkQOLTemplate"" UpdateChildrenStates=""true"">
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""96"" SuggestedHeight=""48"" MarginLeft=""4"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteDeletePerkQOLTemplate"" UpdateChildrenStates=""true"">
               <Children>
-                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""4"" MarginRight=""4"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""17"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateDeleteLabel"" />
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""20"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLTemplateDeleteLabel"" />
               </Children>
             </ButtonWidget>
-            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""72"" SuggestedHeight=""40"" MarginLeft=""3"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteClosePerkQOLFlagMenu"" UpdateChildrenStates=""true"">
+            <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""96"" SuggestedHeight=""48"" MarginLeft=""4"" Brush=""Popup.Cancel.Button.NineGrid"" Command.Click=""ExecuteClosePerkQOLFlagMenu"" UpdateChildrenStates=""true"">
               <Children>
-                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""4"" MarginRight=""4"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""17"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLFlagWindowCloseLabel"" />
+                <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""6"" MarginRight=""6"" Brush=""SPOptions.Dropdown.Center.Text"" Brush.FontSize=""20"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLFlagWindowCloseLabel"" />
               </Children>
             </ButtonWidget>
           </Children>
         </ListPanel>
-        <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""frame_9"" ExtendLeft=""18"" ExtendRight=""18"" ExtendTop=""18"" ExtendBottom=""18"" DoNotAcceptEvents=""true"" />
       </Children>
     </Widget>
   </Children>
