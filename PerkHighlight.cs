@@ -106,9 +106,30 @@ namespace PerkQOL
         private static TroopUsageFlags _selectedCaptainFlags;
         private static bool _selectedCaptainFlagsReady;
 
-        /// <summary>True when PerkFixes is in the load list (Land/Naval captain bits).</summary>
+        /// <summary>
+        /// True when PerkFixes is loaded. Prefer the TroopUsageBits type; fall back to the assembly so the Land/Naval
+        /// ticks still appear if that type is not shipped yet.
+        /// </summary>
         internal static bool PerkFixesLoaded =>
-            _perkFixesLoaded ?? (_perkFixesLoaded = AccessTools.TypeByName("PerkFixes.TroopUsageBits") != null).Value;
+            _perkFixesLoaded ?? (_perkFixesLoaded = DetectPerkFixes()).Value;
+
+        private static bool DetectPerkFixes()
+        {
+            if (AccessTools.TypeByName("PerkFixes.TroopUsageBits") != null)
+            {
+                return true;
+            }
+
+            foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (string.Equals(assembly.GetName().Name, "PerkFixes", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
 
         private static TroopUsageFlags AllTroopFlags =>
             PerkFixesLoaded ? BaseTroopFlags | LandBit | NavalBit : BaseTroopFlags;
@@ -156,6 +177,8 @@ namespace PerkQOL
 
         private static CaptainFlagOption[] BuildFlagOptions()
         {
+            // Row-major 2-column order: pairs sit side by side (On foot/Mounted, Melee/Ranged, Land/Naval),
+            // then melee weapons on the left and ranged on the right, Generic filling the last cell.
             var options = new List<CaptainFlagOption>
             {
                 new CaptainFlagOption(
@@ -166,6 +189,14 @@ namespace PerkQOL
                     new TextObject("{=PQOL_FF_Mounted}Mounted"),
                     new TextObject("{=PQOL_FH_Mounted}Captain perks for mounted troops."),
                     TroopUsageFlags.Mounted),
+                new CaptainFlagOption(
+                    new TextObject("{=PQOL_FF_Melee}Melee"),
+                    new TextObject("{=PQOL_FH_Melee}Captain perks aimed at melee troops."),
+                    TroopUsageFlags.Melee),
+                new CaptainFlagOption(
+                    new TextObject("{=PQOL_FF_Ranged}Ranged"),
+                    new TextObject("{=PQOL_FH_Ranged}Captain perks aimed at ranged troops."),
+                    TroopUsageFlags.Ranged),
             };
 
             if (PerkFixesLoaded)
@@ -181,41 +212,33 @@ namespace PerkQOL
             }
 
             options.Add(new CaptainFlagOption(
-                new TextObject("{=PQOL_FF_Melee}Melee"),
-                new TextObject("{=PQOL_FH_Melee}Captain perks aimed at melee troops."),
-                TroopUsageFlags.Melee));
-            options.Add(new CaptainFlagOption(
-                new TextObject("{=PQOL_FF_Ranged}Ranged"),
-                new TextObject("{=PQOL_FH_Ranged}Captain perks aimed at ranged troops."),
-                TroopUsageFlags.Ranged));
-            options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_OneHanded}1-Handed"),
                 new TextObject("{=PQOL_FH_OneHanded}Captain perks for one-handed weapon users."),
                 TroopUsageFlags.OneHandedUser));
-            options.Add(new CaptainFlagOption(
-                new TextObject("{=PQOL_FF_Shield}Shield"),
-                new TextObject("{=PQOL_FH_Shield}Captain perks for troops that use shields."),
-                TroopUsageFlags.ShieldUser));
-            options.Add(new CaptainFlagOption(
-                new TextObject("{=PQOL_FF_TwoHanded}2-Handed"),
-                new TextObject("{=PQOL_FH_TwoHanded}Captain perks for two-handed weapon users."),
-                TroopUsageFlags.TwoHandedUser));
-            options.Add(new CaptainFlagOption(
-                new TextObject("{=PQOL_FF_Polearm}Polearm"),
-                new TextObject("{=PQOL_FH_Polearm}Captain perks for polearm users."),
-                TroopUsageFlags.PolearmUser));
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Bow}Bow"),
                 new TextObject("{=PQOL_FH_Bow}Captain perks for bow users."),
                 TroopUsageFlags.BowUser));
             options.Add(new CaptainFlagOption(
+                new TextObject("{=PQOL_FF_TwoHanded}2-Handed"),
+                new TextObject("{=PQOL_FH_TwoHanded}Captain perks for two-handed weapon users."),
+                TroopUsageFlags.TwoHandedUser));
+            options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Thrown}Thrown"),
                 new TextObject("{=PQOL_FH_Thrown}Captain perks for thrown-weapon users."),
                 TroopUsageFlags.ThrownUser));
             options.Add(new CaptainFlagOption(
+                new TextObject("{=PQOL_FF_Polearm}Polearm"),
+                new TextObject("{=PQOL_FH_Polearm}Captain perks for polearm users."),
+                TroopUsageFlags.PolearmUser));
+            options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Crossbow}Crossbow"),
                 new TextObject("{=PQOL_FH_Crossbow}Captain perks for crossbow users."),
                 TroopUsageFlags.CrossbowUser));
+            options.Add(new CaptainFlagOption(
+                new TextObject("{=PQOL_FF_Shield}Shield"),
+                new TextObject("{=PQOL_FH_Shield}Captain perks for troops that use shields."),
+                TroopUsageFlags.ShieldUser));
             options.Add(new CaptainFlagOption(
                 new TextObject("{=PQOL_FF_Generic}Generic"),
                 new TextObject("{=PQOL_FH_Generic}Captain perks with no troop flag (untagged)."),
@@ -1671,25 +1694,25 @@ namespace PerkQOL
         <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""BlankWhiteSquare_9"" Color=""#000000FF"" AlphaFactor=""0.6"" DoNotAcceptEvents=""true"" />
       </Children>
     </ButtonWidget>
-    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""820"" SuggestedHeight=""450"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"">
+    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""680"" SuggestedHeight=""520"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"">
       <Children>
         <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Sprite=""StdAssets\Popup\canvas"" />
         <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""36"" MarginTop=""18"" Brush=""SPOptions.GameKeysGroup.Title.Text"" Brush.FontSize=""30"" Brush.TextHorizontalAlignment=""Center"" Text=""@PerkQOLFlagWindowTitle"" />
         <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""18"" MarginTop=""58"" MarginLeft=""36"" MarginRight=""36"" Sprite=""StdAssets\Popup\divider"" />
 
-        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""210"" SuggestedHeight=""250"" MarginLeft=""28"" MarginTop=""86"">
+        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""200"" SuggestedHeight=""310"" MarginLeft=""28"" MarginTop=""86"">
           <Children>
-            <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""24"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""18"" Text=""@PerkQOLFlagProfilesLabel"" />
-            <ScrollablePanel WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""220"" MarginTop=""28"" AutoHideScrollBars=""true"" ClipRect=""ProfileClip"" InnerPanel=""ProfileClip\ProfileList"" VerticalScrollbar=""ProfileScroll"">
+            <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""24"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""20"" Text=""@PerkQOLFlagProfilesLabel"" />
+            <ScrollablePanel WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""280"" MarginTop=""28"" AutoHideScrollBars=""true"" ClipRect=""ProfileClip"" InnerPanel=""ProfileClip\ProfileList"" VerticalScrollbar=""ProfileScroll"">
               <Children>
                 <Widget Id=""ProfileClip"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" ClipContents=""true"">
                   <Children>
                     <ListPanel Id=""ProfileList"" DataSource=""{PerkQOLCaptainProfiles}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""CoverChildren"" StackLayout.LayoutMethod=""VerticalTopToBottom"">
                       <ItemTemplate>
-                        <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""28"" MarginBottom=""2"" ButtonType=""Radio"" IsSelected=""@IsSelected"" UpdateChildrenStates=""true"" Command.Click=""ExecuteSelect"" Brush=""Standard.DropdownItem.SoundBrush"">
+                        <ButtonWidget DoNotPassEventsToChildren=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""30"" MarginBottom=""2"" ButtonType=""Radio"" IsSelected=""@IsSelected"" UpdateChildrenStates=""true"" Command.Click=""ExecuteSelect"" Brush=""Standard.DropdownItem.SoundBrush"">
                           <Children>
                             <ImageWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""2"" MarginRight=""2"" Brush=""Standard.DropdownItem"" />
-                            <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""10"" MarginRight=""6"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""17"" Brush.TextHorizontalAlignment=""Left"" Text=""@Name"" />
+                            <TextWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""10"" MarginRight=""6"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""19"" Brush.TextHorizontalAlignment=""Left"" Text=""@Name"" />
                           </Children>
                         </ButtonWidget>
                       </ItemTemplate>
@@ -1707,7 +1730,7 @@ namespace PerkQOL
           </Children>
         </Widget>
 
-        <GridWidget DataSource=""{PerkQOLCaptainFlags}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""520"" MarginLeft=""260"" MarginTop=""86"" DefaultCellWidth=""170"" DefaultCellHeight=""28"" ColumnCount=""3"">
+        <GridWidget DataSource=""{PerkQOLCaptainFlags}"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""360"" MarginLeft=""250"" MarginTop=""86"" DefaultCellWidth=""180"" DefaultCellHeight=""32"" ColumnCount=""2"">
           <ItemTemplate>
             <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"">
               <Children>
@@ -1718,7 +1741,7 @@ namespace PerkQOL
                         <ImageWidget Id=""ToggleIndicator"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Brush=""SPOptions.Checkbox.Full.Button"" />
                       </Children>
                     </ButtonWidget>
-                    <TextWidget WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""CoverChildren"" VerticalAlignment=""Center"" MarginLeft=""6"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""17"" Text=""@Name"" />
+                    <TextWidget WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""CoverChildren"" VerticalAlignment=""Center"" MarginLeft=""6"" Brush=""CharacterDeveloper.Skill.Stats.Text"" Brush.FontSize=""20"" Text=""@Name"" />
                   </Children>
                 </ListPanel>
                 <HintWidget DataSource=""{Hint}"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Command.HoverBegin=""ExecuteBeginHint"" Command.HoverEnd=""ExecuteEndHint"" IsEnabled=""false"" />
@@ -1727,7 +1750,7 @@ namespace PerkQOL
           </ItemTemplate>
         </GridWidget>
 
-        <BrushWidget UpdateChildrenStates=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""520"" SuggestedHeight=""34"" MarginLeft=""260"" MarginTop=""250"" Brush=""SaveLoad.Search.Button"">
+        <BrushWidget UpdateChildrenStates=""true"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""360"" SuggestedHeight=""34"" MarginLeft=""250"" MarginTop=""330"" Brush=""SaveLoad.Search.Button"">
           <Children>
             <EditableTextWidget UpdateChildrenStates=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" MarginLeft=""12"" MarginRight=""12"" MarginTop=""4"" MarginBottom=""4"" Brush=""SaveLoad.Search.InputText"" Brush.FontSize=""18"" Text=""@PerkQOLTemplateName"" />
           </Children>
