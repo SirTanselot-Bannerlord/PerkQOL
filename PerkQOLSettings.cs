@@ -35,9 +35,9 @@ namespace PerkQOL
         public bool RespecClickToggles { get; set; } = true;
 
         [SettingPropertyBool("Respec: coin on swap arrows", Order = 8, RequireRestart = false,
-            HintText = "Shows a small coin next to each staged swap arrow when swaps cost gold.")]
+            HintText = "Shows a small coin next to each staged swap arrow. Hidden when cost per perk is 0.")]
         [SettingPropertyGroup(CharacterScreen, GroupOrder = 0)]
-        public bool RespecCoinMarker { get; set; } = false;
+        public bool RespecCoinMarker { get; set; } = true;
 
         [SettingPropertyInteger("Respec cost per perk", 0, 10000, "0 Denars", Order = 4, RequireRestart = false,
             HintText = "Gold per swapped perk. Arena reset is ~1000/perk; 0 makes swaps free.")]
