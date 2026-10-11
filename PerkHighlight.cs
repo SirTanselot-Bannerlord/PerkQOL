@@ -15,6 +15,7 @@ using TaleWorlds.Core.ViewModelCollection.Information;
 using TaleWorlds.Core.ViewModelCollection.Selector;
 using TaleWorlds.Library;
 using TaleWorlds.Localization;
+using TaleWorlds.ModuleManager;
 
 namespace PerkQOL
 {
@@ -112,14 +113,43 @@ namespace PerkQOL
         private static bool _selectedCaptainFlagsReady;
 
         /// <summary>
-        /// True when Perk Fixes and Rebalance is loaded. Prefer TroopUsageBits; fall back to assembly name so Land/Naval
-        /// ticks still appear if the type name moves.
+        /// True when Perk Fixes and Rebalance is active. Module id is authoritative; type/assembly names are fallbacks
+        /// for older builds. Only caches true so a too-early probe cannot permanently hide Land/Naval.
         /// </summary>
-        internal static bool PerkFixesLoaded =>
-            _perkFixesLoaded ?? (_perkFixesLoaded = DetectPerkFixes()).Value;
+        internal static bool PerkFixesLoaded
+        {
+            get
+            {
+                if (_perkFixesLoaded == true)
+                {
+                    return true;
+                }
+
+                if (DetectPerkFixes())
+                {
+                    _perkFixesLoaded = true;
+                    _flagOptions = null;
+                    return true;
+                }
+
+                return false;
+            }
+        }
 
         private static bool DetectPerkFixes()
         {
+            try
+            {
+                if (ModuleHelper.IsModuleActive("PerkFixesAndRebalance") || ModuleHelper.IsModuleActive("PerkFixes"))
+                {
+                    return true;
+                }
+            }
+            catch
+            {
+                // ModuleHelper may not be ready during very early load.
+            }
+
             if (AccessTools.TypeByName("PerkFixesAndRebalance.TroopUsageBits") != null
                 || AccessTools.TypeByName("PerkFixes.TroopUsageBits") != null)
             {
@@ -181,7 +211,15 @@ namespace PerkQOL
         /// Flags the captain menu can tick. Generic is the untagged captain effects (mask None), not a troop flag.
         /// Land/Naval appear only when PerkFixes is loaded. Bandit culture is left out on purpose.
         /// </summary>
-        internal static CaptainFlagOption[] FlagOptions => _flagOptions ?? (_flagOptions = BuildFlagOptions());
+        internal static CaptainFlagOption[] FlagOptions
+        {
+            get
+            {
+                // May clear a stale cache built before Perk Fixes was detectable.
+                _ = PerkFixesLoaded;
+                return _flagOptions ?? (_flagOptions = BuildFlagOptions());
+            }
+        }
 
         private static CaptainFlagOption[] BuildFlagOptions()
         {
