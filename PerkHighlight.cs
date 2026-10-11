@@ -112,22 +112,25 @@ namespace PerkQOL
         private static bool _selectedCaptainFlagsReady;
 
         /// <summary>
-        /// True when PerkFixes is loaded. Prefer the TroopUsageBits type; fall back to the assembly so the Land/Naval
-        /// ticks still appear if that type is not shipped yet.
+        /// True when Perk Fixes and Rebalance is loaded. Prefer TroopUsageBits; fall back to assembly name so Land/Naval
+        /// ticks still appear if the type name moves.
         /// </summary>
         internal static bool PerkFixesLoaded =>
             _perkFixesLoaded ?? (_perkFixesLoaded = DetectPerkFixes()).Value;
 
         private static bool DetectPerkFixes()
         {
-            if (AccessTools.TypeByName("PerkFixes.TroopUsageBits") != null)
+            if (AccessTools.TypeByName("PerkFixesAndRebalance.TroopUsageBits") != null
+                || AccessTools.TypeByName("PerkFixes.TroopUsageBits") != null)
             {
                 return true;
             }
 
             foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
             {
-                if (string.Equals(assembly.GetName().Name, "PerkFixes", StringComparison.OrdinalIgnoreCase))
+                string name = assembly.GetName().Name;
+                if (string.Equals(name, "PerkFixesAndRebalance", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(name, "PerkFixes", StringComparison.OrdinalIgnoreCase))
                 {
                     return true;
                 }

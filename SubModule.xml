@@ -15,7 +15,7 @@
     <DependedModule Id="Bannerlord.UIExtenderEx" Optional="false" />
     <DependedModule Id="Bannerlord.MBOptionScreen" Optional="false" />
     <DependedModule Id="NavalDLC" Optional="true" />
-    <DependedModule Id="PerkFixes" Optional="true" />
+    <DependedModule Id="PerkFixesAndRebalance" Optional="true" />
   </DependedModules>
   <DependedModuleMetadatas>
     <DependedModuleMetadata id="Bannerlord.Harmony" order="LoadBeforeThis" />
@@ -23,7 +23,7 @@
     <DependedModuleMetadata id="Bannerlord.UIExtenderEx" order="LoadBeforeThis" />
     <DependedModuleMetadata id="Bannerlord.MBOptionScreen" order="LoadBeforeThis" />
     <DependedModuleMetadata id="NavalDLC" order="LoadBeforeThis" optional="true" />
-    <DependedModuleMetadata id="PerkFixes" order="LoadBeforeThis" optional="true" />
+    <DependedModuleMetadata id="PerkFixesAndRebalance" order="LoadBeforeThis" optional="true" />
   </DependedModuleMetadatas>
   <SubModules>
     <SubModule>
