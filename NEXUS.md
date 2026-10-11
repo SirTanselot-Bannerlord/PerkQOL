@@ -3,13 +3,17 @@
 **Module id / GitHub:** `PerkQOL`  
 **Source:** https://github.com/SirTanselot-Bannerlord/PerkQOL
 
+Paste the **Summary** into Nexus “About this mod”, and everything under **Description** into the long description (BBCode or Markdown as Nexus accepts).
+
+---
+
 ## Summary
 
-Find the right perks faster and swap choices without an arena reset. Role filters, search, and captain troop flags highlight matching perks on the character screen; a respec mode stages perk-pair swaps (paid in gold, applied on Done). Fully configurable in MCM.
+Swap individual perks directly on the character screen (optional gold cost per perk). Detailed, customizable highlighting for perk roles and the troop types you captain.
 
 ## Description
 
-Find the right perks faster, and swap the ones you already picked without an arena reset.
+Swap individual perks directly on the character screen (optional gold cost per perk). Detailed, customizable highlighting for perk roles and the troop types you captain.
 
 Vanilla makes both hard: perk roles are buried in tooltips, captain troop tags are easy to miss, and changing a choice means resetting a whole skill at the arena.
 
