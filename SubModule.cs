@@ -23,6 +23,12 @@ namespace PerkQOL
             CaptainDropdownOpensUp.TryPatch(harmony);
         }
 
+        protected override void OnApplicationTick(float dt)
+        {
+            base.OnApplicationTick(dt);
+            CharacterScreenLazy.Tick(dt);
+        }
+
         protected override void OnBeforeInitialModuleScreenSetAsRoot()
         {
             base.OnBeforeInitialModuleScreenSetAsRoot();

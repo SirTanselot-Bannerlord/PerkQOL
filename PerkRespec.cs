@@ -257,17 +257,29 @@ namespace PerkQOL
 
         private static void Changed()
         {
-            foreach (WeakReference<PerkRespecPerkMixin> weak in Perks)
-            {
-                if (weak.TryGetTarget(out PerkRespecPerkMixin mixin))
-                {
-                    mixin.Refresh();
-                }
-            }
-
+            RefreshCurrentHero();
             if (_screen != null && _screen.TryGetTarget(out PerkRespecScreenMixin screen))
             {
                 screen.Refresh();
+            }
+        }
+
+        /// <summary>Arrow markers for the selected hero only.</summary>
+        internal static void RefreshCurrentHero()
+        {
+            if (!Settings.Current.PerkRespec)
+            {
+                return;
+            }
+
+            Hero current = CharacterScreenLazy.CurrentHero;
+            Perks.RemoveAll(w => !w.TryGetTarget(out _));
+            foreach (WeakReference<PerkRespecPerkMixin> weak in Perks)
+            {
+                if (weak.TryGetTarget(out PerkRespecPerkMixin mixin) && mixin.Hero == current)
+                {
+                    mixin.Refresh();
+                }
             }
         }
     }
@@ -324,10 +336,19 @@ namespace PerkQOL
 
         public PerkRespecScreenMixin(CharacterDeveloperVM vm) : base(vm)
         {
+            if (!Settings.Current.PerkRespec)
+            {
+                return;
+            }
+
             PerkRespec.BeginSession(this);
+            CharacterScreenLazy.BindRespecScreen(this);
+            CharacterScreenLazy.OnScreenBound(vm);
             _isPerkQOLRespecOn = PerkRespec.IsOn;
             Refresh();
         }
+
+        internal void NotifyUiReadyChanged() => OnPropertyChanged(nameof(IsPerkQOLRespecVisible));
 
         internal void Refresh()
         {
@@ -339,7 +360,8 @@ namespace PerkQOL
         }
 
         [DataSourceProperty]
-        public bool IsPerkQOLRespecVisible => Settings.Current.PerkRespec;
+        public bool IsPerkQOLRespecVisible =>
+            Settings.Current.PerkRespec && CharacterScreenLazy.UiReady;
 
         [DataSourceProperty]
         public bool IsPerkQOLRespecEnabled => PerkRespec.IsLocationAllowed;
@@ -419,12 +441,24 @@ namespace PerkQOL
             _perk = vm.Perk;
             _hero = PerkRespec.HeroItemOfPerk(vm)?.Hero;
             _isLowerOfPair = vm.AlternativeType == (int)PerkVM.PerkAlternativeType.SecondAlternative;
+            if (!Settings.Current.PerkRespec)
+            {
+                return;
+            }
+
             PerkRespec.Track(this);
-            Refresh();
+            // Arrow visibility applied in the deferred current-hero pass.
         }
+
+        internal Hero Hero => _hero;
 
         internal void Refresh()
         {
+            if (!Settings.Current.PerkRespec)
+            {
+                return;
+            }
+
             bool pending = PerkRespec.IsPending(_hero, _perk);
             IsPerkQOLRespecArrowDown = pending && _isLowerOfPair;
             IsPerkQOLRespecArrowUp = pending && !_isLowerOfPair;
@@ -486,58 +520,53 @@ namespace PerkQOL
     [PrefabExtension("CharacterDeveloper", "descendant::BrushWidget[@Id='PerkVisualWidgetParent']/Children")]
     public sealed class PerkRespecMarkerPatch : PrefabExtensionInsertPatch
     {
-        public override InsertType Type => InsertType.Child;
+        private const string Stub =
+            "<Widget WidthSizePolicy=\"Fixed\" HeightSizePolicy=\"Fixed\" SuggestedWidth=\"0\" SuggestedHeight=\"0\" IsVisible=\"false\" DoNotAcceptEvents=\"true\" />";
 
-        public override int Index => int.MaxValue;
-
-        [PrefabExtensionText]
-        public string Content => @"
+        // Same dual-half arrow look; one shared root, no extra outer wrapper beyond the two arrow roots.
+        private const string Markers = @"
 <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" DoNotAcceptEvents=""true"">
   <Children>
     <Widget IsVisible=""@IsPerkQOLRespecArrowDown"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""28"" SuggestedHeight=""28"" HorizontalAlignment=""Center"" VerticalAlignment=""Top"" PositionYOffset=""-12"" DoNotAcceptEvents=""true"">
       <Children>
-        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""14"" HorizontalAlignment=""Left"" ClipContents=""true"" DoNotAcceptEvents=""true"">
-          <Children>
-            <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""20"" SuggestedHeight=""27"" HorizontalAlignment=""Left"" VerticalAlignment=""Center"" MarginLeft=""5.5"" Sprite=""StdAssets\arrow_little"" Rotation=""-90"" PivotX=""0.5"" PivotY=""0.5"" ColorFactor=""1.3"" DoNotAcceptEvents=""true"" />
-          </Children>
-        </Widget>
-        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""14"" HorizontalAlignment=""Right"" ClipContents=""true"" DoNotAcceptEvents=""true"">
-          <Children>
-            <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""20"" SuggestedHeight=""27"" HorizontalAlignment=""Right"" VerticalAlignment=""Center"" MarginRight=""5.5"" Sprite=""StdAssets\arrow_little"" Rotation=""-90"" VerticalFlip=""true"" PivotX=""0.5"" PivotY=""0.5"" ColorFactor=""1.3"" DoNotAcceptEvents=""true"" />
-          </Children>
-        </Widget>
+        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""20"" SuggestedHeight=""27"" HorizontalAlignment=""Left"" VerticalAlignment=""Center"" MarginLeft=""-1"" Sprite=""StdAssets\arrow_little"" Rotation=""-90"" PivotX=""0.5"" PivotY=""0.5"" ColorFactor=""1.3"" DoNotAcceptEvents=""true"" />
+        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""20"" SuggestedHeight=""27"" HorizontalAlignment=""Right"" VerticalAlignment=""Center"" MarginRight=""-1"" Sprite=""StdAssets\arrow_little"" Rotation=""-90"" VerticalFlip=""true"" PivotX=""0.5"" PivotY=""0.5"" ColorFactor=""1.3"" DoNotAcceptEvents=""true"" />
         <Widget IsVisible=""@IsPerkQOLRespecCoinVisible"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""17"" SuggestedHeight=""17"" HorizontalAlignment=""Left"" VerticalAlignment=""Top"" MarginLeft=""17"" MarginTop=""12"" Sprite=""General\Icons\Coin@2x"" DoNotAcceptEvents=""true"" />
       </Children>
     </Widget>
     <Widget IsVisible=""@IsPerkQOLRespecArrowUp"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""28"" SuggestedHeight=""28"" HorizontalAlignment=""Center"" VerticalAlignment=""Top"" MarginTop=""70"" DoNotAcceptEvents=""true"">
       <Children>
-        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""14"" HorizontalAlignment=""Left"" ClipContents=""true"" DoNotAcceptEvents=""true"">
-          <Children>
-            <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""20"" SuggestedHeight=""27"" HorizontalAlignment=""Left"" VerticalAlignment=""Center"" MarginLeft=""5.5"" Sprite=""StdAssets\arrow_little"" Rotation=""90"" VerticalFlip=""true"" PivotX=""0.5"" PivotY=""0.5"" ColorFactor=""1.3"" DoNotAcceptEvents=""true"" />
-          </Children>
-        </Widget>
-        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""14"" HorizontalAlignment=""Right"" ClipContents=""true"" DoNotAcceptEvents=""true"">
-          <Children>
-            <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""20"" SuggestedHeight=""27"" HorizontalAlignment=""Right"" VerticalAlignment=""Center"" MarginRight=""5.5"" Sprite=""StdAssets\arrow_little"" Rotation=""90"" PivotX=""0.5"" PivotY=""0.5"" ColorFactor=""1.3"" DoNotAcceptEvents=""true"" />
-          </Children>
-        </Widget>
+        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""20"" SuggestedHeight=""27"" HorizontalAlignment=""Left"" VerticalAlignment=""Center"" MarginLeft=""-1"" Sprite=""StdAssets\arrow_little"" Rotation=""90"" VerticalFlip=""true"" PivotX=""0.5"" PivotY=""0.5"" ColorFactor=""1.3"" DoNotAcceptEvents=""true"" />
+        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""20"" SuggestedHeight=""27"" HorizontalAlignment=""Right"" VerticalAlignment=""Center"" MarginRight=""-1"" Sprite=""StdAssets\arrow_little"" Rotation=""90"" PivotX=""0.5"" PivotY=""0.5"" ColorFactor=""1.3"" DoNotAcceptEvents=""true"" />
         <Widget IsVisible=""@IsPerkQOLRespecCoinVisible"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""17"" SuggestedHeight=""17"" HorizontalAlignment=""Left"" VerticalAlignment=""Top"" MarginLeft=""17"" MarginTop=""12"" Sprite=""General\Icons\Coin@2x"" DoNotAcceptEvents=""true"" />
       </Children>
     </Widget>
   </Children>
 </Widget>";
+
+        public override InsertType Type => InsertType.Child;
+
+        public override int Index => int.MaxValue;
+
+        [PrefabExtensionText]
+        public string Content => Settings.Current.PerkRespec ? Markers : Stub;
     }
 
     /// <summary>Respec toggle and total cost, under the highlight tickboxes.</summary>
     [PrefabExtension("CharacterDeveloper", "descendant::Widget[@VisualDefinition='RightPanel']/Children")]
     public sealed class PerkRespecTogglePatch : PrefabExtensionInsertPatch
     {
+        private const string Stub =
+            "<Widget WidthSizePolicy=\"Fixed\" HeightSizePolicy=\"Fixed\" SuggestedWidth=\"0\" SuggestedHeight=\"0\" IsVisible=\"false\" DoNotAcceptEvents=\"true\" />";
+
         public override InsertType Type => InsertType.Child;
 
         public override int Index => int.MaxValue;
 
         [PrefabExtensionText]
-        public string Content => @"
+        public string Content => Settings.Current.PerkRespec ? Toggle : Stub;
+
+        private const string Toggle = @"
 <Widget IsVisible=""@IsPerkQOLRespecVisible"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""430"" SuggestedHeight=""30"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"" MarginTop=""830"" PositionXOffset=""245"">
   <Children>
     <ListPanel WidthSizePolicy=""CoverChildren"" HeightSizePolicy=""StretchToParent"" HorizontalAlignment=""Left"" StackLayout.LayoutMethod=""HorizontalLeftToRight"">

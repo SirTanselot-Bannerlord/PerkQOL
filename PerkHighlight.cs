@@ -551,10 +551,33 @@ namespace PerkQOL
 
         private static void RefreshAll()
         {
+            // While the deferred open/switch apply is pending, skip; ApplyNow will refresh with the latest filters.
+            if (CharacterScreenLazy.ShouldDeferRefresh)
+            {
+                return;
+            }
+
+            RefreshCurrentHero();
+        }
+
+        /// <summary>Apply highlight state for the selected hero only (other companions stay untouched).</summary>
+        internal static void RefreshCurrentHero()
+        {
+            if (!Settings.Current.PerkHighlight)
+            {
+                return;
+            }
+
+            Hero current = CharacterScreenLazy.CurrentHero;
+            if (current == null)
+            {
+                return;
+            }
+
             Perks.RemoveAll(r => !r.TryGetTarget(out _));
             foreach (WeakReference<PerkHighlightPerkMixin> reference in Perks)
             {
-                if (reference.TryGetTarget(out PerkHighlightPerkMixin mixin))
+                if (reference.TryGetTarget(out PerkHighlightPerkMixin mixin) && mixin.Hero == current)
                 {
                     mixin.Refresh();
                 }
@@ -563,7 +586,7 @@ namespace PerkQOL
             Skills.RemoveAll(r => !r.TryGetTarget(out _));
             foreach (WeakReference<PerkHighlightSkillMixin> reference in Skills)
             {
-                if (reference.TryGetTarget(out PerkHighlightSkillMixin mixin))
+                if (reference.TryGetTarget(out PerkHighlightSkillMixin mixin) && mixin.Hero == current)
                 {
                     mixin.Refresh();
                 }
@@ -576,15 +599,18 @@ namespace PerkQOL
 
         internal static void RefreshSkill(SkillObject skill)
         {
-            if (skill == null)
+            if (skill == null || !Settings.Current.PerkHighlight || CharacterScreenLazy.ShouldDeferRefresh)
             {
                 return;
             }
 
+            Hero current = CharacterScreenLazy.CurrentHero;
             Skills.RemoveAll(r => !r.TryGetTarget(out _));
             foreach (WeakReference<PerkHighlightSkillMixin> reference in Skills)
             {
-                if (reference.TryGetTarget(out PerkHighlightSkillMixin mixin) && mixin.Skill == skill)
+                if (reference.TryGetTarget(out PerkHighlightSkillMixin mixin)
+                    && mixin.Skill == skill
+                    && mixin.Hero == current)
                 {
                     mixin.Refresh();
                 }
@@ -1042,6 +1068,14 @@ namespace PerkQOL
 
         public PerkHighlightScreenMixin(CharacterDeveloperVM vm) : base(vm)
         {
+            if (!Settings.Current.PerkHighlight)
+            {
+                _perkHighlightRoles = new MBBindingList<PerkHighlightRoleVM>();
+                _captainFlags = new MBBindingList<CaptainFlagVM>();
+                _captainProfiles = new MBBindingList<CaptainProfileVM>();
+                return;
+            }
+
             // Two columns, row by row. The right column ends with Captain so its troop menu can sit indented under that label.
             _perkHighlightRoles = new MBBindingList<PerkHighlightRoleVM>();
             foreach (PerkHighlighter.Mode role in new[]
@@ -1074,12 +1108,21 @@ namespace PerkQOL
 
             _searchText = PerkHighlighter.SearchText;
             PerkHighlighter.BindScreen(this);
+            CharacterScreenLazy.BindHighlightScreen(this);
+            CharacterScreenLazy.OnScreenBound(vm);
             SyncTickboxes();
             UpdateCaptainFilterVisible();
         }
 
+        internal void NotifyUiReadyChanged()
+        {
+            OnPropertyChanged(nameof(IsPerkQOLHighlightVisible));
+            UpdateCaptainFilterVisible();
+        }
+
         [DataSourceProperty]
-        public bool IsPerkQOLHighlightVisible => Settings.Current.PerkHighlight;
+        public bool IsPerkQOLHighlightVisible =>
+            Settings.Current.PerkHighlight && CharacterScreenLazy.UiReady;
 
         [DataSourceProperty]
         public string PerkQOLSearchPlaceholder => PerkHighlighter.SearchPlaceholder.ToString();
@@ -1402,7 +1445,9 @@ namespace PerkQOL
 
         private void UpdateCaptainFilterVisible()
         {
-            IsPerkQOLCaptainFilterVisible = Settings.Current.PerkHighlight && PerkHighlighter.IsSelected(PerkHighlighter.Mode.Captain);
+            IsPerkQOLCaptainFilterVisible = Settings.Current.PerkHighlight
+                && CharacterScreenLazy.UiReady
+                && PerkHighlighter.IsSelected(PerkHighlighter.Mode.Captain);
             if (!IsPerkQOLCaptainFilterVisible)
             {
                 IsPerkQOLFlagMenuOpen = false;
@@ -1510,6 +1555,7 @@ namespace PerkQOL
     public sealed class PerkHighlightPerkMixin : BaseViewModelMixin<PerkVM>
     {
         private readonly PerkObject _perk;
+        private readonly Hero _hero;
         private bool _isPerkQOLHighlighted;
         private bool _isPerkQOLSearchHighlighted;
         private Color _leftColor;
@@ -1518,12 +1564,25 @@ namespace PerkQOL
         public PerkHighlightPerkMixin(PerkVM vm) : base(vm)
         {
             _perk = vm.Perk;
-            Refresh();
+            _hero = PerkRespec.HeroItemOfPerk(vm)?.Hero;
+            if (!Settings.Current.PerkHighlight)
+            {
+                return;
+            }
+
             PerkHighlighter.Track(this);
+            // Apply runs after the deferred open/switch delay for the current hero only.
         }
+
+        internal Hero Hero => _hero;
 
         internal void Refresh()
         {
+            if (!Settings.Current.PerkHighlight)
+            {
+                return;
+            }
+
             bool role = PerkHighlighter.TryGetRoleColors(_perk, out Color left, out Color right);
             bool show = PerkHighlighter.PerkIsHighlighted(_perk, out bool useRoleColors);
             if (show && useRoleColors && role)
@@ -1601,24 +1660,52 @@ namespace PerkQOL
         private static readonly Color MatchColor = Color.FromUint(0xFF5EEAD4u);
 
         private readonly SkillObject _skill;
+        private readonly Hero _hero;
         private Color _nameColor = NormalColor;
         private string _nameText = "";
 
         public PerkHighlightSkillMixin(SkillVM vm) : base(vm)
         {
             _skill = vm.Skill;
+            _hero = PerkRespec.HeroItemOfSkill(vm)?.Hero;
+            if (!Settings.Current.PerkHighlight)
+            {
+                // Still bind vanilla-looking text so a replace patch without our logic keeps a name.
+                string fallback = vm.NameText ?? _skill?.Name?.ToString() ?? "";
+                PerkQOLSkillNameText = fallback;
+                return;
+            }
+
             PerkHighlighter.Track(this);
-            Apply();
+            string baseName = vm.NameText ?? _skill?.Name?.ToString() ?? "";
+            PerkQOLSkillNameText = baseName;
+            // Match color/stats applied in the deferred current-hero pass.
         }
 
         internal SkillObject Skill => _skill;
 
-        public override void OnRefresh() => Apply();
+        internal Hero Hero => _hero;
+
+        public override void OnRefresh()
+        {
+            if (!Settings.Current.PerkHighlight || CharacterScreenLazy.ShouldDeferRefresh
+                || !CharacterScreenLazy.IsCurrentHero(_hero))
+            {
+                return;
+            }
+
+            Apply();
+        }
 
         internal void Refresh() => Apply();
 
         private void Apply()
         {
+            if (!Settings.Current.PerkHighlight)
+            {
+                return;
+            }
+
             string baseName = ViewModel?.NameText;
             if (string.IsNullOrEmpty(baseName))
             {
@@ -1678,42 +1765,38 @@ namespace PerkQOL
     }
 
     /// <summary>
-    /// Frame over the perk icon, using the sprite vanilla uses for its hover frame (57x62, not nine-sliced, so the line
-    /// scales with the frame). Drawn as two clipped halves of the same frame inside the 80x86 parent so each half can
-    /// take its own role colour. A second white frame is used for search-only matches.
+    /// Frame over the perk icon (vanilla hover sprite). Two clipped halves for role colours; one white frame for search.
+    /// Slim tree: no extra StretchToParent wrappers around each half. Empty when highlight MCM is off.
     /// </summary>
     [PrefabExtension("CharacterDeveloper", "descendant::BrushWidget[@Id='PerkVisualWidgetParent']/Children")]
     public sealed class PerkHighlightFramePatch : PrefabExtensionInsertPatch
     {
+        private const string Stub =
+            "<Widget WidthSizePolicy=\"Fixed\" HeightSizePolicy=\"Fixed\" SuggestedWidth=\"0\" SuggestedHeight=\"0\" IsVisible=\"false\" DoNotAcceptEvents=\"true\" />";
+
+        private const string Frames = @"
+<Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" DoNotAcceptEvents=""true"">
+  <Children>
+    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""40"" HorizontalAlignment=""Left"" ClipContents=""true"" DoNotAcceptEvents=""true"" IsVisible=""@IsPerkQOLHighlighted"">
+      <Children>
+        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""44"" SuggestedHeight=""48"" HorizontalAlignment=""Left"" MarginLeft=""18"" MarginTop=""19"" Sprite=""CharacterDeveloper\selected_perk_indicator_hover"" Color=""@PerkQOLHighlightLeftColor"" ColorFactor=""1.6"" DoNotAcceptEvents=""true"" />
+      </Children>
+    </Widget>
+    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""40"" HorizontalAlignment=""Right"" ClipContents=""true"" DoNotAcceptEvents=""true"" IsVisible=""@IsPerkQOLHighlighted"">
+      <Children>
+        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""44"" SuggestedHeight=""48"" HorizontalAlignment=""Right"" MarginRight=""18"" MarginTop=""19"" Sprite=""CharacterDeveloper\selected_perk_indicator_hover"" Color=""@PerkQOLHighlightRightColor"" ColorFactor=""1.6"" DoNotAcceptEvents=""true"" />
+      </Children>
+    </Widget>
+    <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""44"" SuggestedHeight=""48"" HorizontalAlignment=""Center"" MarginTop=""19"" Sprite=""CharacterDeveloper\selected_perk_indicator_hover"" Color=""#FFFFFFFF"" ColorFactor=""1.6"" DoNotAcceptEvents=""true"" IsVisible=""@IsPerkQOLSearchHighlighted"" />
+  </Children>
+</Widget>";
+
         public override InsertType Type => InsertType.Child;
 
         public override int Index => int.MaxValue;
 
         [PrefabExtensionText]
-        public string Content => @"
-<Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" DoNotAcceptEvents=""true"">
-  <Children>
-    <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" DoNotAcceptEvents=""true"" IsVisible=""@IsPerkQOLHighlighted"">
-      <Children>
-        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""40"" HorizontalAlignment=""Left"" ClipContents=""true"" DoNotAcceptEvents=""true"">
-          <Children>
-            <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""44"" SuggestedHeight=""48"" HorizontalAlignment=""Left"" MarginLeft=""18"" MarginTop=""19"" Sprite=""CharacterDeveloper\selected_perk_indicator_hover"" Color=""@PerkQOLHighlightLeftColor"" ColorFactor=""1.6"" DoNotAcceptEvents=""true"" />
-          </Children>
-        </Widget>
-        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""StretchToParent"" SuggestedWidth=""40"" HorizontalAlignment=""Right"" ClipContents=""true"" DoNotAcceptEvents=""true"">
-          <Children>
-            <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""44"" SuggestedHeight=""48"" HorizontalAlignment=""Right"" MarginRight=""18"" MarginTop=""19"" Sprite=""CharacterDeveloper\selected_perk_indicator_hover"" Color=""@PerkQOLHighlightRightColor"" ColorFactor=""1.6"" DoNotAcceptEvents=""true"" />
-          </Children>
-        </Widget>
-      </Children>
-    </Widget>
-    <Widget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" DoNotAcceptEvents=""true"" IsVisible=""@IsPerkQOLSearchHighlighted"">
-      <Children>
-        <Widget WidthSizePolicy=""Fixed"" HeightSizePolicy=""Fixed"" SuggestedWidth=""44"" SuggestedHeight=""48"" HorizontalAlignment=""Center"" MarginTop=""19"" Sprite=""CharacterDeveloper\selected_perk_indicator_hover"" Color=""#FFFFFFFF"" ColorFactor=""1.6"" DoNotAcceptEvents=""true"" />
-      </Children>
-    </Widget>
-  </Children>
-</Widget>";
+        public string Content => Settings.Current.PerkHighlight ? Frames : Stub;
     }
 
     /// <summary>
@@ -1723,12 +1806,17 @@ namespace PerkQOL
     [PrefabExtension("CharacterDeveloper", "descendant::Widget[@VisualDefinition='RightPanel']/Children")]
     public sealed class PerkHighlightControlsPatch : PrefabExtensionInsertPatch
     {
+        private const string Stub =
+            "<Widget WidthSizePolicy=\"Fixed\" HeightSizePolicy=\"Fixed\" SuggestedWidth=\"0\" SuggestedHeight=\"0\" IsVisible=\"false\" DoNotAcceptEvents=\"true\" />";
+
         public override InsertType Type => InsertType.Child;
 
         public override int Index => int.MaxValue;
 
         [PrefabExtensionText]
-        public string Content => @"
+        public string Content => Settings.Current.PerkHighlight ? Controls : Stub;
+
+        private const string Controls = @"
 <ListPanel IsVisible=""@IsPerkQOLHighlightVisible"" WidthSizePolicy=""Fixed"" HeightSizePolicy=""CoverChildren"" SuggestedWidth=""430"" HorizontalAlignment=""Center"" VerticalAlignment=""Center"" MarginTop=""575"" PositionXOffset=""245"" StackLayout.LayoutMethod=""VerticalTopToBottom"">
   <Children>
     <BrushWidget UpdateChildrenStates=""true"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""Fixed"" SuggestedHeight=""36"" MarginBottom=""6"" Brush=""SaveLoad.Search.Button"">
@@ -1790,12 +1878,17 @@ namespace PerkQOL
     [PrefabExtension("CharacterDeveloper", "descendant::Window/Widget/Children")]
     public sealed class PerkHighlightFlagWindowPatch : PrefabExtensionInsertPatch
     {
+        private const string Stub =
+            "<Widget WidthSizePolicy=\"Fixed\" HeightSizePolicy=\"Fixed\" SuggestedWidth=\"0\" SuggestedHeight=\"0\" IsVisible=\"false\" DoNotAcceptEvents=\"true\" />";
+
         public override InsertType Type => InsertType.Child;
 
         public override int Index => int.MaxValue;
 
         [PrefabExtensionText]
-        public string Content => @"
+        public string Content => Settings.Current.PerkHighlight ? Window : Stub;
+
+        private const string Window = @"
 <Widget IsVisible=""@IsPerkQOLFlagMenuOpen"" WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"">
   <Children>
     <ButtonWidget WidthSizePolicy=""StretchToParent"" HeightSizePolicy=""StretchToParent"" Command.Click=""ExecuteClosePerkQOLFlagMenu"" DoNotPassEventsToChildren=""true"">
@@ -1914,10 +2007,15 @@ namespace PerkQOL
 
         public PerkHighlightSkillNamePatch()
         {
-            _document.LoadXml(
-                "<TextWidget WidthSizePolicy=\"CoverChildren\" HeightSizePolicy=\"Fixed\" SuggestedHeight=\"!NameText.Height\" " +
-                "VerticalAlignment=\"Top\" MarginLeft=\"10\" ClipContents=\"false\" Brush=\"CharacterDeveloper.GridSkillName.Text\" " +
-                "Brush.FontColor=\"@PerkQOLSkillNameColor\" IsEnabled=\"@CanLearnSkill\" Text=\"@PerkQOLSkillNameText\" DoNotAcceptEvents=\"true\" />");
+            // When highlight is off, keep a vanilla-equivalent binding so Replace does not blank names.
+            string xml = Settings.Current.PerkHighlight
+                ? "<TextWidget WidthSizePolicy=\"CoverChildren\" HeightSizePolicy=\"Fixed\" SuggestedHeight=\"!NameText.Height\" " +
+                  "VerticalAlignment=\"Top\" MarginLeft=\"10\" ClipContents=\"false\" Brush=\"CharacterDeveloper.GridSkillName.Text\" " +
+                  "Brush.FontColor=\"@PerkQOLSkillNameColor\" IsEnabled=\"@CanLearnSkill\" Text=\"@PerkQOLSkillNameText\" DoNotAcceptEvents=\"true\" />"
+                : "<TextWidget WidthSizePolicy=\"StretchToParent\" HeightSizePolicy=\"Fixed\" SuggestedHeight=\"!NameText.Height\" " +
+                  "VerticalAlignment=\"Top\" MarginLeft=\"10\" Brush=\"CharacterDeveloper.GridSkillName.Text\" " +
+                  "IsEnabled=\"@CanLearnSkill\" Text=\"@NameText\" DoNotAcceptEvents=\"true\" />";
+            _document.LoadXml(xml);
         }
 
         [PrefabExtensionXmlNode]
